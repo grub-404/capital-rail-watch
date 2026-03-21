@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Capital Rail Watch</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#181818;--panel:#222;--border:#444;
+  --w:#ddd8c8;--y:#dcb030;--g:#40c840;--r:#e04444;
+  --cell:#1a1a1a;--cellhi:#252520;
+  --amtrak:#5BA8E0;--marc:#e04444;--vre:#40c840;--metro:#c0c0c0;
+}
+html,body{width:100%;height:100%;background:transparent;overflow:hidden;font-family:'Courier New',monospace}
+
+/* ─── Panel ─────────────────────────────── */
+#panel{
+  position:absolute;top:20px;left:20px;
+  width:420px;
+  background:rgba(24,24,24,0.92);
+  border:1px solid var(--border);
+  border-radius:6px;
+  box-shadow:0 4px 24px rgba(0,0,0,0.6);
+  overflow:hidden;
+  cursor:pointer; /* click to enable audio */
+}
+
+/* ─── Header ────────────────────────────── */
+#header{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:8px 14px;
+  background:linear-gradient(180deg,#2a2a2a,#1e1e1e);
+  border-bottom:1px solid var(--border);
+}
+#header .title{color:var(--y);font-size:13px;font-weight:bold;letter-spacing:1.5px}
+#header .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--g);margin-right:6px;vertical-align:middle}
+#header .clock{color:var(--w);font-size:13px;opacity:0.85}
+
+/* ─── Weather strip ─────────────────────── */
+#weather-strip{
+  padding:4px 14px;
+  font-size:11px;color:var(--w);opacity:0.7;
+  border-bottom:1px solid #333;
+  letter-spacing:0.5px;
+}
+
+/* ─── Train row ─────────────────────────── */
+#train-row{padding:10px 14px 12px}
+
+.row-top{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.badge{
+  display:inline-block;
+  padding:2px 10px;
+  font-size:14px;font-weight:bold;
+  border-radius:3px;
+  letter-spacing:1px;
+  min-width:44px;text-align:center;
+}
+.badge.arr{background:var(--g);color:#111}
+.badge.dep{background:var(--y);color:#111}
+
+.train-num{display:flex;gap:1px;margin-left:2px}
+.train-time{display:flex;gap:1px;margin-left:auto}
+
+/* ─── Flap cells ────────────────────────── */
+.c{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:22px;height:28px;
+  background:linear-gradient(180deg,var(--cellhi) 0%,var(--cellhi) 48%,#111 49%,#111 51%,var(--cell) 52%,var(--cell) 100%);
+  color:var(--w);
+  font-size:17px;font-weight:bold;
+  border-radius:2px;
+  position:relative;
+  font-family:'Courier New',monospace;
+}
+.c.sm{width:18px;height:24px;font-size:14px}
+.c.green{color:var(--g)}.c.red{color:var(--r)}.c.yellow{color:var(--y)}
+
+/* Flip animation */
+.c.flip{animation:flip 0.13s ease-in-out}
+@keyframes flip{
+  0%{transform:scaleY(1)}
+  50%{transform:scaleY(0)}
+  100%{transform:scaleY(1)}
+}
+
+/* ─── Route name row ────────────────────── */
+.route-row{display:flex;gap:1px;margin:6px 0}
+
+/* ─── Detail strip ──────────────────────── */
+.detail-strip{
+  font-size:11px;
+  color:var(--w);
+  opacity:0.7;
+  letter-spacing:0.5px;
+  margin-top:4px;
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+}
+.detail-strip .late{color:var(--r);opacity:1;font-weight:bold}
+.detail-strip .ontime{color:var(--g);opacity:1;font-weight:bold}
+.detail-strip .early{color:var(--g);opacity:1}
+
+/* ─── System dot ────────────────────────── */
+.sys-dot{
+  display:inline-block;width:8px;height:8px;
+  border-radius:50%;margin-right:4px;vertical-align:middle;
+}
+
+/* ─── No-train state ────────────────────── */
+#no-train{
+  padding:14px;
+  text-align:center;
+  color:var(--w);opacity:0.5;
+  font-size:12px;
+  display:none;
+}
+
+/* ─── Footer ────────────────────────────── */
+#footer{
+  padding:4px 14px;
+  font-size:9px;
+  color:var(--w);opacity:0.35;
+  border-top:1px solid #333;
+  text-align:right;
+  letter-spacing:0.5px;
+}
+</style>
+</head>
+<body>
+
+<div id="panel">
+  <div id="header">
+    <div><span class="dot" id="status-dot"></span><span class="title">CAPITAL RAIL WATCH</span></div>
+    <div class="clock" id="clock">--:-- ET</div>
+  </div>
+  <div id="weather-strip">--°F ---</div>
+  <div id="train-row">
+    <div class="row-top">
+      <div class="badge arr" id="badge">ARR</div>
+      <div class="train-num" id="train-num"></div>
+      <div class="train-time" id="train-time"></div>
+    </div>
+    <div class="route-row" id="route-name"></div>
+    <div class="detail-strip" id="detail"></div>
+  </div>
+  <div id="no-train">NO TRAINS IN VIEW</div>
+  <div id="footer">NORTH APPROACH · UNION STATION</div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// Capital Rail Watch — Overlay Logic
+// ═══════════════════════════════════════════════════════
+
+// ─── Config ────────────────────────────────────────────
+const API_URL = 'https://api-v3.amtraker.com/v3/trains';
+const WEATHER_URL = 'https://api.open-meteo.com/v1/forecast?latitude=38.8977&longitude=-77.0066&current=temperature_2m,weather_code&temperature_unit=fahrenheit&timezone=America/New_York';
+const POLL_INTERVAL = 30000;   // 30s train data
+const WEATHER_INTERVAL = 300000; // 5 min
+const TZ = 'America/New_York';
+
+const NORTH_ROUTES = [
+  'acela','ne regional','northeast regional','vermonter',
+  'capitol limited','lake shore limited','cardinal',
+  'carolinian','palmetto','silver star','silver meteor',
+  'marc penn','marc - penn'
+];
+
+const DEMO_TRAINS = [
+  { num:'2253', route:'ACELA', direction:'arr', schTime:'2026-03-21T14:30:00-04:00', actTime:'2026-03-21T14:38:00-04:00', delay:8, platform:'7', origin:'New York Penn', destination:'Washington Union', system:'amtrak' },
+  { num:'171', route:'NE REGIONAL', direction:'dep', schTime:'2026-03-21T15:05:00-04:00', actTime:'', delay:0, platform:'12', origin:'Washington Union', destination:'Boston South', system:'amtrak' },
+  { num:'29', route:'CAPITOL LIMITED', direction:'arr', schTime:'2026-03-21T16:45:00-04:00', actTime:'2026-03-21T17:27:00-04:00', delay:42, platform:'', origin:'Chicago Union', destination:'Washington Union', system:'amtrak' },
+  { num:'432', route:'MARC PENN', direction:'arr', schTime:'2026-03-21T14:55:00-04:00', actTime:'', delay:0, platform:'', origin:'Baltimore Penn', destination:'Washington Union', system:'marc' },
+];
+
+const WMO_CODES = {
+  0:'CLEAR',1:'MOSTLY CLR',2:'PTLY CLOUDY',3:'OVERCAST',
+  45:'FOG',48:'RIME FOG',51:'LT DRIZZLE',53:'DRIZZLE',55:'HV DRIZZLE',
+  61:'LT RAIN',63:'RAIN',65:'HV RAIN',71:'LT SNOW',73:'SNOW',75:'HV SNOW',
+  77:'SNOW GRNS',80:'LT SHOWERS',81:'SHOWERS',82:'HV SHOWERS',
+  85:'LT SNOW SH',86:'HV SNOW SH',95:'TSTORM',96:'TSTORM HAIL',99:'HV TSTORM'
+};
+
+// ─── State ─────────────────────────────────────────────
+let currentTrain = null;
+let previousFlaps = {};
+let audioCtx = null;
+let audioEnabled = false;
+let usingDemo = true;
+
+// ─── Core functions ────────────────────────────────────
+
+function calcDelay(schISO, actISO) {
+  if (!schISO || !actISO) return 0;
+  const sch = new Date(schISO).getTime();
+  const act = new Date(actISO).getTime();
+  if (isNaN(sch) || isNaN(act)) return 0;
+  return Math.round((act - sch) / 60000);
+}
+
+function parseTrains(apiResp) {
+  if (!apiResp || typeof apiResp !== 'object' || Array.isArray(apiResp)) return [];
+  const out = [];
+  for (const key of Object.keys(apiResp)) {
+    const arr = apiResp[key];
+    if (!Array.isArray(arr)) continue;
+    for (const train of arr) {
+      if (!train.trainNum) continue;
+      const stations = train.stations || [];
+      const wasStop = stations.find(s => (s.code || '').toUpperCase() === 'WAS');
+      if (!wasStop) continue;
+
+      const origCode = (train.origCode || '').toUpperCase();
+      const destCode = (train.destCode || '').toUpperCase();
+      const stopStatus = (wasStop.status || '').toLowerCase();
+
+      let direction;
+      if (destCode === 'WAS') {
+        direction = 'arr';
+      } else if (origCode === 'WAS') {
+        direction = 'dep';
+      } else if (stopStatus === 'enroute' || stopStatus === '') {
+        direction = 'arr';
+      } else {
+        direction = 'dep';
+      }
+
+      const schTime = direction === 'arr' ? wasStop.schArr : wasStop.schDep;
+      const actTime = direction === 'arr' ? (wasStop.arr || '') : (wasStop.dep || '');
+      const delay = calcDelay(
+        direction === 'arr' ? wasStop.schArr : wasStop.schDep,
+        direction === 'arr' ? wasStop.arr : wasStop.dep
+      );
+
+      out.push({
+        num: String(train.trainNum),
+        route: train.routeName || '',
+        direction,
+        schTime: schTime || '',
+        actTime: actTime,
+        delay,
+        platform: wasStop.platform || '',
+        origin: train.origName || '',
+        destination: train.destName || '',
+        system: 'amtrak',
+        status: stopStatus
+      });
+    }
+  }
+  return out;
+}
+
+function filterNorthApproach(trains) {
+  return trains.filter(t => {
+    const r = t.route.toLowerCase();
+    return NORTH_ROUTES.some(n => r.includes(n));
+  });
+}
+
+function statusText(delay) {
+  if (delay === 0) return { text: 'ON TIME', cls: 'green' };
+  if (delay > 0) return { text: '+' + delay + ' MIN', cls: 'red' };
+  return { text: delay + ' MIN', cls: 'green' };
+}
+
+function fmtTime(dateStr) {
+  if (!dateStr) return '--:--';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '--:--';
+  let h = d.getHours();
+  const m = String(d.getMinutes()).padStart(2, '0');
+  const ampm = h >= 12 ? 'P' : 'A';
+  h = h % 12 || 12;
+  return h + ':' + m + ampm;
+}
+
+function F(text, len, cls) {
+  text = String(text);
+  while (text.length < len) text += ' ';
+  text = text.substring(0, len);
+  let html = '';
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i] === ' ' ? '&nbsp;' : text[i].toUpperCase();
+    html += '<span class="c' + (cls ? ' ' + cls : '') + '">' + ch + '</span>';
+  }
+  return html;
+}
+
+// ─── Rendering ─────────────────────────────────────────
+
+function pickNextTrain(trains) {
+  if (!trains.length) return null;
+  const now = Date.now();
+  const sorted = trains.slice().sort((a, b) => {
+    const ta = new Date(a.actTime || a.schTime || 0).getTime();
+    const tb = new Date(b.actTime || b.schTime || 0).getTime();
+    return ta - tb;
+  });
+  for (const t of sorted) {
+    const tt = new Date(t.actTime || t.schTime || 0).getTime();
+    if (tt >= now - 600000) return t;
+  }
+  return sorted[sorted.length - 1];
+}
+
+function renderTrain(train) {
+  const row = document.getElementById('train-row');
+  const noTrain = document.getElementById('no-train');
+
+  if (!train) {
+    row.style.display = 'none';
+    noTrain.style.display = 'block';
+    currentTrain = null;
+    return;
+  }
+
+  row.style.display = 'block';
+  noTrain.style.display = 'none';
+
+  // Badge
+  const badge = document.getElementById('badge');
+  badge.textContent = train.direction.toUpperCase();
+  badge.className = 'badge ' + train.direction;
+
+  // System dot color
+  const sysColors = { amtrak: 'var(--amtrak)', marc: 'var(--marc)', vre: 'var(--vre)', metro: 'var(--metro)' };
+  document.getElementById('status-dot').style.background = sysColors[train.system] || 'var(--g)';
+
+  // Train number — flap cells
+  const numEl = document.getElementById('train-num');
+  setFlaps(numEl, 'num', train.num, 5, '');
+
+  // Time — show actual if available, else scheduled
+  const timeStr = fmtTime(train.actTime || train.schTime);
+  const timeEl = document.getElementById('train-time');
+  setFlaps(timeEl, 'time', timeStr, 6, '');
+
+  // Route name
+  const routeEl = document.getElementById('route-name');
+  setFlaps(routeEl, 'route', train.route, 18, '', true);
+
+  // Detail strip
+  const detail = document.getElementById('detail');
+  const st = statusText(train.delay);
+  const fromTo = train.direction === 'arr'
+    ? 'FROM ' + (train.origin || '---').toUpperCase()
+    : 'TO ' + (train.destination || '---').toUpperCase();
+  const platformStr = train.platform ? 'TRK ' + train.platform : '';
+  const parts = [fromTo, platformStr, '<span class="' + (st.cls === 'red' ? 'late' : 'ontime') + '">' + st.text + '</span>'];
+  detail.innerHTML = parts.filter(Boolean).join(' &middot; ');
+
+  currentTrain = train;
+}
+
+function setFlaps(el, key, text, len, cls, small) {
+  text = String(text).toUpperCase();
+  while (text.length < len) text += ' ';
+  text = text.substring(0, len);
+
+  const prev = previousFlaps[key] || '';
+  let html = '';
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i] === ' ' ? '&nbsp;' : text[i];
+    const changed = prev[i] !== text[i];
+    const classes = 'c' + (small ? ' sm' : '') + (cls ? ' ' + cls : '') + (changed && prev ? ' flip' : '');
+    html += '<span class="' + classes + '">' + ch + '</span>';
+    if (changed && prev && audioEnabled) playClick();
+  }
+  el.innerHTML = html;
+  previousFlaps[key] = text;
+}
+
+// ─── Clock ─────────────────────────────────────────────
+
+function updateClock() {
+  const now = new Date();
+  const opts = { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: TZ };
+  const str = now.toLocaleTimeString('en-US', opts).replace(' ', '');
+  document.getElementById('clock').textContent = str + ' ET';
+}
+
+// ─── Weather ───────────────────────────────────────────
+
+async function fetchWeather() {
+  try {
+    const res = await fetch(WEATHER_URL);
+    if (!res.ok) return;
+    const data = await res.json();
+    const temp = Math.round(data.current.temperature_2m);
+    const code = data.current.weather_code;
+    const desc = WMO_CODES[code] || 'N/A';
+    document.getElementById('weather-strip').textContent = temp + '°F ' + desc;
+  } catch (e) {
+    // silent fail — keep last value
+  }
+}
+
+// ─── Audio ─────────────────────────────────────────────
+
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  startHum();
+  audioEnabled = true;
+}
+
+function startHum() {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = 60;
+  gain.gain.value = 0.015;
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start();
+}
+
+function playClick() {
+  if (!audioCtx) return;
+  const bufSize = audioCtx.sampleRate * 0.008;
+  const buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) {
+    data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufSize * 0.15));
+  }
+  const src = audioCtx.createBufferSource();
+  const gain = audioCtx.createGain();
+  src.buffer = buf;
+  gain.gain.value = 0.08;
+  src.connect(gain);
+  gain.connect(audioCtx.destination);
+  src.start();
+}
+
+// ─── Data fetching ─────────────────────────────────────
+
+async function fetchTrains() {
+  try {
+    const res = await fetch(API_URL);
+    if (!res.ok) throw new Error('API ' + res.status);
+    const raw = await res.json();
+    // raw is { "trainNum": [{ trainObj with stations[] }], ... }
+    const trains = parseTrains(raw);
+    const north = filterNorthApproach(trains);
+    if (north.length > 0) {
+      usingDemo = false;
+      renderTrain(pickNextTrain(north));
+      console.log('[CRW] Live data:', north.length, 'north-approach trains');
+      return;
+    }
+  } catch (e) {
+    console.warn('[CRW] API fetch failed, using demo data:', e.message);
+  }
+  if (usingDemo || !currentTrain) {
+    usingDemo = true;
+    renderTrain(pickNextTrain(DEMO_TRAINS));
+  }
+}
+
+// ─── Init ──────────────────────────────────────────────
+
+document.getElementById('panel').addEventListener('click', () => {
+  initAudio();
+  // Re-render to trigger flip sounds
+  if (currentTrain) {
+    previousFlaps = {};
+    renderTrain(currentTrain);
+  }
+});
+
+updateClock();
+setInterval(updateClock, 1000);
+fetchWeather();
+setInterval(fetchWeather, WEATHER_INTERVAL);
+fetchTrains();
+setInterval(fetchTrains, POLL_INTERVAL);
+
+// Cycle demo trains for visual interest when in demo mode
+let demoIdx = 0;
+setInterval(() => {
+  if (!usingDemo) return;
+  demoIdx = (demoIdx + 1) % DEMO_TRAINS.length;
+  renderTrain(DEMO_TRAINS[demoIdx]);
+}, 8000);
+
+</script>
+</body>
+</html>
