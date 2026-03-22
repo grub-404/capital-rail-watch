@@ -140,6 +140,20 @@ svg{position:absolute;width:0;height:0}
 .seclbl{display:inline-flex;align-items:center;gap:0;flex-shrink:0}
 .secline{flex:1;height:1px;background:#333330}
 
+/* ─── Countdown lights ──────────────────── */
+.rotdots{display:inline-flex;align-items:center;gap:6px;margin-left:10px}
+.rotdot{
+  width:8px;height:8px;border-radius:50%;
+  background:#1a1a18;
+  border:1px solid #2a2a28;
+  box-shadow:inset 0 1px 3px rgba(0,0,0,0.6);
+}
+.rotdot.on{
+  background:var(--amber);
+  border-color:#8a7020;
+  box-shadow:0 0 6px rgba(232,184,32,0.5),inset 0 -1px 1px rgba(255,255,200,0.3);
+}
+
 /* ─── Footer ─────────────────────────────── */
 #ftr{
   padding:8px 10px;
@@ -195,6 +209,7 @@ html.night .secline{background:#2a2820}
 <script>
 const API='https://api-v3.amtraker.com/v3/trains';
 const MARC_API='/api/marc';
+const WMATA_API='/api/metro';
 const POLL=30000,ROTATE_MS=20000;
 const WEATHER_API='https://api.open-meteo.com/v1/forecast?latitude=38.899&longitude=-77.007&current=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m&daily=sunrise,sunset&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=America/New_York';
 
@@ -226,6 +241,10 @@ const CITY={
   'Alexandria':'ALX','Trenton':'TRE','Perryville':'PVL',
   'Newport News':'NPN','Harrisburg':'HBG','Niagara Falls':'NFA','Rutland':'RTD',
   'Montreal':'MTL','Toronto':'TOR','Pittsburgh':'PGH','Cleveland':'CLE',
+  'Glenmont':'GLN','Shady Grv':'SHG','Shady Grove':'SHG',
+  'NoMa-Gallaudet U':'NMA','Silver Spring':'SSP',
+  'Wheaton':'WHT','Bethesda':'BET','Rockville':'RKV',
+  'Forest Glen':'FGL','Twinbrook':'TWB','Medical Center':'MED',
 };
 const RSHORT={'Northeast Regional':'NE REGNL','NE Regional':'NE REGNL','Capitol Limited':'CAPTL LT','Lake Shore Limited':'LKSHR LT','Silver Meteor':'SLVR MET','Silver Star':'SLVR STR','MARC PENN':'MRC PENN','MARC BRUNSWICK':'MRC BRNS','MARC CAMDEN':'MRC CMDN'};
 
@@ -276,7 +295,7 @@ function sRoute(n){return RSHORT[n]||n.toUpperCase().substring(0,8)}
 function sCity(n){if(!n)return'---';if(CITY[n])return CITY[n];for(const[k,v]of Object.entries(CITY)){if(n.toLowerCase().includes(k.toLowerCase()))return v}return n.toUpperCase().substring(0,3)}
 
 // Destinations reachable via north approach (NEC + B&P tunnel west)
-const NB_DEST=new Set(['NY','BOS','PHL','BAL','NWK','NHV','TRE','PVL','BWI','ABD','SPG','STB','HBG','NFA','CHI','CLE','PGH','MTL','TOR','RTD','GMT','RKV','BRN','FDK']);
+const NB_DEST=new Set(['NY','BOS','PHL','BAL','NWK','NHV','TRE','PVL','BWI','ABD','SPG','STB','HBG','NFA','CHI','CLE','PGH','MTL','TOR','RTD','GMT','RKV','BRN','FDK','GLN','SSP','WHT','FGL']);
 function isNorthbound(t){
   const d=sCity(t.destination);
   if(d==='DC')return false; // terminating at DC = arrived from somewhere
@@ -380,6 +399,12 @@ function buildBoard(){
     // Store references to the hc spans for later updates
     const hcSpans=pgLbl.querySelectorAll('.hc');
     secHeaders[key]={pgSpans:Array.from(hcSpans)};
+    // Countdown dots on AMTRAK row only
+    if(key==='amtrak'){
+      const dots=document.createElement('span');dots.className='rotdots';
+      for(let d=0;d<ROT_DOTS;d++){const dot=document.createElement('span');dot.className='rotdot';dots.appendChild(dot)}
+      sechr.appendChild(dots);
+    }
     const secline=document.createElement('div');secline.className='secline';
     sechr.appendChild(secline);
     el.appendChild(sechr);
@@ -419,8 +444,8 @@ function rowData(t){
   const orig=sCity(t.origin);
   const arrow='\u2192';
   const dest=sCity(t.destination);
-  const time=fTimeCountdown(t.actTime||t.schTime);
-  const st=stTxt(t.delay);
+  const time=fTime(t.actTime||t.schTime);
+  const st=t._status||stTxt(t.delay);
   // Build array of {ch, cls} for each of the 42 cells
   const out=[];
   function push(text,len,cls){
@@ -616,38 +641,78 @@ async function fetchMARC(){
   }catch(e){console.warn('[CRW] marc err:',e.message);return[]}
 }
 
+async function fetchWMATA(){
+  try{
+    const r=await fetch(WMATA_API);
+    if(!r.ok)throw new Error(r.status);
+    const j=await r.json();
+    const now=Date.now();
+    return(j.Trains||[]).filter(t=>t.Line&&t.Min!=='---'&&t.Min!=='').map((t,i)=>{
+      const mins=t.Min==='BRD'?0:t.Min==='ARR'?0:parseInt(t.Min)||0;
+      const eta=new Date(now+mins*60000).toISOString();
+      // BRD/ARR get special status override; otherwise shows "ON TIME" via delay=0
+      const _status=t.Min==='BRD'?{t:'BOARDNG',c:'green'}:t.Min==='ARR'?{t:'ARRIVE',c:'green'}:null;
+      const obj={
+        num:t.Car+'C',route:'RED LINE',direction:'arr',
+        schTime:eta,actTime:eta,delay:0,platform:t.Group,
+        origin:'NoMa-Gallaudet U',destination:t.DestinationName||t.Destination,
+        system:'metro'
+      };
+      if(_status)obj._status=_status;
+      return obj;
+    });
+  }catch(e){console.warn('[CRW] wmata err:',e.message);return[]}
+}
+
 async function logTrains(trains){
   try{await fetch('/api/log',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(trains)})}
   catch(e){console.warn('[CRW] log err:',e.message)}
 }
 
 async function fetchTrains(){
-  const [amtrak,marc]=await Promise.all([fetchAmtrak(),fetchMARC()]);
-  const all=[...amtrak,...marc];
-  if(all.length){
+  const [amtrak,marc,metro]=await Promise.all([fetchAmtrak(),fetchMARC(),fetchWMATA()]);
+  const railAll=[...amtrak,...marc];
+  if(railAll.length||metro.length){
     demo=false;
-    const picked=pick(all,60);
-    opTrains={amtrak:[],marc:[],metro:[]};
+    const picked=pick(railAll,60);
+    opTrains={amtrak:[],marc:[],metro:metro.slice(0,MAX_PER_OP)};
     picked.forEach(t=>{const k=t.system||'amtrak';if(opTrains[k])opTrains[k].push(t)});
-    for(const k in opTrains)opTrains[k]=opTrains[k].slice(0,MAX_PER_OP);
+    for(const k of ['amtrak','marc'])opTrains[k]=opTrains[k].slice(0,MAX_PER_OP);
+    opOff={amtrak:0,marc:0,metro:0};
+    updateBoard();
     if(amtrak.length)logTrains(amtrak);
-    console.log('[CRW]',opTrains.amtrak.length,'amtrak +',opTrains.marc.length,'marc');
+    console.log('[CRW]',opTrains.amtrak.length,'amtrak +',opTrains.marc.length,'marc +',opTrains.metro.length,'metro');
     return;
   }
   if(demo||!shown.length){
     demo=true;
     opTrains={amtrak:DEMO.filter(t=>t.system==='amtrak'),marc:DEMO.filter(t=>t.system==='marc'),metro:[]};
+    opOff={amtrak:0,marc:0,metro:0};
+    updateBoard();
   }
+}
+
+const ROT_DOTS=5;
+let rotTimer=null;
+function startCountdown(){
+  const dots=document.querySelectorAll('.rotdot');
+  dots.forEach(d=>d.classList.remove('on'));
+  if(rotTimer)clearInterval(rotTimer);
+  let lit=0;
+  const step=ROTATE_MS/ROT_DOTS;
+  rotTimer=setInterval(()=>{
+    if(lit<ROT_DOTS)dots[lit++].classList.add('on');
+  },step);
 }
 
 function rotateTick(){
   updateFooter();
-  // Advance each operator's page, wrap back to page 1
   for(const k of SECTIONS){
     opOff[k]+=SLOTS_PER_SEC;
     if(opOff[k]>=opTrains[k].length)opOff[k]=0;
   }
   updateBoard();
+  startCountdown();
 }
 
 // ─── Init ──────────────────────────────────
@@ -686,23 +751,26 @@ function flipCell(span,target,flips,speed,quiet){
   if(aon&&(!quiet||Math.random()<0.15))playClick();
   setTimeout(()=>flipCell(span,target,flips-1,speed,quiet),speed);
 }
-// Unified cascade timing
+// Cascade timing
 const CASC_STAGGER=25,CASC_SPEED=150,CASC_FLIPS_MIN=2,CASC_FLIPS_MAX=4,CASC_ROW_GAP=80;
-function cascadeBoard(){
-  const tgs=document.getElementById('trns').querySelectorAll('.tg');
-  let rowIdx=0;
-  tgs.forEach(tg=>{
-    const cells=Array.from(tg.querySelectorAll('.casc'));
-    if(!cells.length){rowIdx++;return}
-    cells.reverse(); // right-to-left sweep
-    const baseDelay=rowIdx*CASC_ROW_GAP;
-    cells.forEach((span,ci)=>{
-      const target=decodeURIComponent(span.dataset.t);
+function cascadeFlips(changed){
+  // Group by row, reverse within each row (right-to-left), stagger rows
+  const byRow=new Map();
+  changed.forEach(c=>{
+    if(!byRow.has(c.rowIdx))byRow.set(c.rowIdx,[]);
+    byRow.get(c.rowIdx).push(c);
+  });
+  const rowKeys=[...byRow.keys()].sort((a,b)=>a-b);
+  rowKeys.forEach((rk,ri)=>{
+    const cells=byRow.get(rk);
+    // Sort by cellIdx descending (right-to-left)
+    cells.sort((a,b)=>b.cellIdx-a.cellIdx);
+    const baseDelay=ri*CASC_ROW_GAP;
+    cells.forEach((c,ci)=>{
       const delay=baseDelay+ci*CASC_STAGGER;
       const flips=CASC_FLIPS_MIN+Math.floor(Math.random()*(CASC_FLIPS_MAX-CASC_FLIPS_MIN+1));
-      setTimeout(()=>flipCell(span,target,flips,CASC_SPEED,true),delay);
+      setTimeout(()=>flipCell(c.span,c.targetCh,flips,CASC_SPEED,true),delay);
     });
-    rowIdx++;
   });
 }
 function updateFooter(){
@@ -723,11 +791,12 @@ function updateFooter(){
 }
 
 buildHeaders();
+buildBoard();
 initFooter();updateFooter();
 updateClock();setInterval(updateClock,1000);
 fetchWeather();setInterval(fetchWeather,300000);
 updateWeather();
-fetchTrains();setInterval(fetchTrains,POLL);
+fetchTrains().then(()=>{updateBoard();startCountdown()});
 setInterval(rotateTick,ROTATE_MS);
 </script>
 </body>

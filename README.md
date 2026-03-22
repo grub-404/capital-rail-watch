@@ -16,7 +16,17 @@ cd backend
 pip install -r requirements.txt
 ```
 
-### 3. Run the server
+### 3. Set up WMATA key (optional — for Metro data)
+
+Get a free API key from [developer.wmata.com](https://developer.wmata.com/) and set it as an environment variable:
+
+- **Mac/Linux**: `export WMATA_KEY=your_key_here`
+- **Windows (cmd)**: `set WMATA_KEY=your_key_here`
+- **Windows (PowerShell)**: `$env:WMATA_KEY="your_key_here"`
+
+The overlay works without this — you just won't see Metro predictions.
+
+### 4. Run the server
 
 ```bash
 python backend/server.py
@@ -29,7 +39,7 @@ The server starts on `http://localhost:5555`. You should see:
 [CRW] Starting on port 5555
 ```
 
-### 4. Add to OBS
+### 5. Add to OBS
 
 1. In your OBS scene, click **+** under Sources → **Browser**
 2. Set the URL to `http://localhost:5555`
@@ -54,6 +64,7 @@ db/
 |---|---|
 | `GET /` | Serves the overlay |
 | `GET /api/marc` | Live MARC train data (from GTFS-RT) |
+| `GET /api/metro` | WMATA Metro predictions (proxied, requires `WMATA_KEY`) |
 | `GET /api/stats` | Today's train count and delay stats |
 | `GET /api/health` | Health check |
 | `POST /api/log` | Log external train data (e.g. Amtrak) |

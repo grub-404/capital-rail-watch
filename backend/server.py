@@ -3,7 +3,7 @@ Capital Rail Watch — Backend proxy
 Fetches MARC GTFS-RT protobuf feed, decodes to JSON, serves to overlay.
 Logs all train sightings to SQLite for stats and history.
 """
-import csv, io, sqlite3, time, zipfile, urllib.request, os
+import csv, io, json, sqlite3, time, zipfile, urllib.request, os
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from flask import Flask, jsonify, request, send_from_directory
@@ -91,6 +91,8 @@ MARC_GTFS = "https://feeds.mta.maryland.gov/gtfs/marc"
 WAS_STOP = "11958"
 PENN_ROUTE = "11705"
 ET = timezone(timedelta(hours=-4))
+WMATA_KEY = os.environ.get("WMATA_KEY", "")
+WMATA_PREDICTIONS = "https://api.wmata.com/StationPrediction.svc/json/GetPrediction/B35"
 
 # ─── Static GTFS data (loaded once) ─────────
 stops = {}       # stop_id → short name
@@ -321,6 +323,22 @@ def stats():
         })
     finally:
         conn.close()
+
+
+@app.route("/api/metro")
+def metro_trains():
+    """Proxy WMATA predictions so the API key stays server-side."""
+    if not WMATA_KEY:
+        return jsonify({"error": "WMATA_KEY not set", "Trains": []}), 503
+    try:
+        req = urllib.request.Request(
+            WMATA_PREDICTIONS,
+            headers={"api_key": WMATA_KEY},
+        )
+        data = urllib.request.urlopen(req, timeout=10).read()
+        return jsonify(json.loads(data))
+    except Exception as e:
+        return jsonify({"error": str(e), "Trains": []}), 502
 
 
 @app.route("/api/health")
