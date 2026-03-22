@@ -73,6 +73,7 @@ backend/
 overlay/
   index.html         # Solari board overlay (HTML/CSS/JS)
   ticker.html        # Scrolling ticker (same data sources as index: Amtraker + /api/marc + /api/metro)
+  ticker-facts.json  # “Did you know?” lines for the ticker (easy to edit; see TICKER-FACTS-README.txt)
   *.svg              # Logos for the ticker (Amtrak, MARC)
 db/
   schema.sql         # SQLite schema for train logging

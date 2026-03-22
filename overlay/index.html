@@ -123,6 +123,9 @@ svg{position:absolute;width:0;height:0}
   z-index:2;
 }
 .c.green{color:var(--green)}.c.red{color:var(--red)}.c.amber{color:var(--amber)}
+/* WMATA map / signage line colors (approx. official hex) */
+.c.metro-rd{color:#C8102E}.c.metro-bl{color:#0096D6}.c.metro-or{color:#F7931E}
+.c.metro-sv{color:#9EA2A2}.c.metro-gr{color:#00B140}.c.metro-yl{color:#FFD200}
 
 .c.flip{animation:flip 0.18s ease-in-out}
 @keyframes flip{0%{transform:scaleY(1)}45%{transform:scaleY(0)}55%{transform:scaleY(0)}100%{transform:scaleY(1)}}
@@ -460,7 +463,7 @@ function rowData(t){
     for(let i=0;i<len;i++)out.push({ch:text[i],cls:cls||''});
   }
   push(ad,COL.ad,adC);push(compass,COL.dir,'');push(sys,COL.sys,'');
-  push(num,COL.num,'');push(route,COL.route,'');
+  push(num,COL.num,'');push(route,COL.route,t.metroRouteCls||'');
   push(orig,COL.orig,'');push(arrow,1,'');push(dest,COL.dest,'');
   push(time,COL.time,'');push(st.t,COL.status,st.c);
   return out;
@@ -670,6 +673,10 @@ async function fetchVRE(){
   }catch(e){console.warn('[CRW] vre err:',e.message);return[]}
 }
 
+const METRO_LINES_BY_CODE={
+  RD:{abbr:'RED',cls:'metro-rd'},BL:{abbr:'BLUE',cls:'metro-bl'},OR:{abbr:'ORANGE',cls:'metro-or'},
+  SV:{abbr:'SILVER',cls:'metro-sv'},GR:{abbr:'GREEN',cls:'metro-gr'},YL:{abbr:'YELLOW',cls:'metro-yl'}
+};
 async function fetchWMATA(){
   try{
     const r=await fetch(WMATA_API);
@@ -679,13 +686,16 @@ async function fetchWMATA(){
     return(j.Trains||[]).filter(t=>t.Line&&t.Min!=='---'&&t.Min!=='').map((t,i)=>{
       const mins=t.Min==='BRD'?0:t.Min==='ARR'?0:parseInt(t.Min)||0;
       const eta=new Date(now+mins*60000).toISOString();
+      const code=String(t.Line||'').toUpperCase().trim();
+      const L=METRO_LINES_BY_CODE[code];
+      const route=L?`${L.abbr} LINE`:`${code} LINE`;
       // BRD/ARR get special status override; otherwise shows "ON TIME" via delay=0
       const _status=t.Min==='BRD'?{t:'BOARDNG',c:'green'}:t.Min==='ARR'?{t:'ARRIVE',c:'green'}:null;
       const obj={
-        num:t.Car+'C',route:'RED LINE',direction:'arr',
+        num:t.Car+'C',route:route,direction:'arr',
         schTime:eta,actTime:eta,delay:0,platform:t.Group,
         origin:'NoMa-Gallaudet U',destination:t.DestinationName||t.Destination,
-        system:'metro'
+        system:'metro',metroRouteCls:L?L.cls:''
       };
       if(_status)obj._status=_status;
       return obj;

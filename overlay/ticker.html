@@ -5,145 +5,284 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Union Station Ticker</title>
   <style>
+    /* Aligned with overlay/index.html Solari board tokens */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --flap: #1a1a18;
+      --flaphi: #222220;
+      --flaplo: #161614;
+      --housing: #2a2a28;
+      --frame: #363632;
+      --framelt: #42423e;
+      --framedk: #262624;
+      --txt: #eeece0;
+      --txtdim: #aaa898;
+      --amber: #e8b820;
+      --green: #38b838;
+      --red: #d83838;
+      --amtrak: #4a90c8;
+    }
 
     html, body {
       width: 100%;
       height: 100%;
       background: transparent;
       overflow: hidden;
-      font-family: "Arial Narrow", Arial, sans-serif;
+      font-family: Helvetica, Arial, sans-serif;
     }
 
-    /* ── ticker bar ───────────────────────────────────────────── */
+    #ticker,
+    #ticker-label,
+    #ticker-track-wrap,
+    .tick-item,
+    .tick-sep {
+      transition: background 3s ease, border-color 3s ease, color 3s ease, box-shadow 3s ease;
+    }
+
+    /* ── Bar housing (matches #board frame) ─────────────────── */
     #ticker {
       position: fixed;
       top: 0;
       left: 0;
       width: 100%;
-      height: 52px;
+      min-height: 52px;
       display: flex;
       align-items: stretch;
       overflow: hidden;
+      background: var(--housing);
+      border: 4px solid var(--frame);
+      border-top-color: var(--framelt);
+      border-left-color: var(--framelt);
+      border-bottom-color: var(--framedk);
+      border-right-color: var(--framedk);
+      box-shadow: 2px 3px 12px rgba(0, 0, 0, 0.7), 0 0 1px rgba(0, 0, 0, 0.9);
     }
 
-    /* left label badge */
+    /* ── Section label strip (hdr + sysbar accent) ─────────────── */
     #ticker-label {
       flex-shrink: 0;
-      min-width: 120px;
+      min-width: 128px;
+      max-width: 200px;
       overflow: hidden;
       position: relative;
+      background: linear-gradient(180deg, #242422, #1e1e1c);
+      border-right: 1px solid #1a1a18;
+      border-left: 4px solid var(--txtdim);
     }
+
+    #ticker-label.mode-departures { border-left-color: var(--amber); }
+    #ticker-label.mode-arrivals   { border-left-color: var(--green); }
+    #ticker-label.mode-metro      { border-left-color: #a0a0a0; }
+    #ticker-label.mode-funfact    { border-left-color: var(--amtrak); }
 
     #label-inner {
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 6px;
       width: 100%;
       height: 100%;
-      padding: 0 14px;
-      font-size: 12px;
-      font-weight: 900;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      white-space: nowrap;
-      color: #fff;
+      padding: 8px 12px;
     }
 
-    /* scrolling track */
+    #label-text {
+      font: bold 9px/1.2 Helvetica, Arial, sans-serif;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      text-align: center;
+      color: var(--txtdim);
+      white-space: normal;
+    }
+
+    #ticker-label.mode-departures #label-text { color: var(--amber); }
+    #ticker-label.mode-arrivals   #label-text { color: var(--green); }
+    #ticker-label.mode-metro      #label-text { color: #c8c8c8; }
+    #ticker-label.mode-funfact    #label-text { color: var(--amtrak); }
+
+    /* ── Track (dark content well, same feel as #trns) ───────── */
     #ticker-track-wrap {
       flex: 1;
       overflow: hidden;
-      background: rgba(10, 10, 20, 0.88);
-      backdrop-filter: blur(4px);
-      border-bottom: 2px solid rgba(255,255,255,0.08);
       position: relative;
+      background: #101010;
+      box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.6);
+    }
+
+    #ticker-track-wrap::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 80% 70% at 50% 40%, rgba(255, 255, 240, 0.02), transparent 70%);
+      pointer-events: none;
+      z-index: 1;
     }
 
     #ticker-track {
       display: flex;
       align-items: center;
       height: 100%;
+      min-height: 44px;
       position: absolute;
       left: 0;
       top: 0;
       white-space: nowrap;
       will-change: transform;
+      z-index: 2;
+      padding: 4px 8px;
+      gap: 6px;
     }
 
-    /* individual event chips */
+    /* ── Event chips (flat — no split-flap mimic) ─────────────── */
     .tick-item {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      padding: 0 24px;
-      height: 100%;
-      border-right: 1px solid rgba(255,255,255,0.08);
-      color: #f0f0f0;
-      font-size: 15px;
-      font-weight: 600;
+      gap: 10px;
+      padding: 6px 16px;
+      min-height: 36px;
+      color: var(--txt);
+      font: bold 13px/1.2 Helvetica, Arial, sans-serif;
       letter-spacing: 0.02em;
+      background: rgba(38, 38, 36, 0.92);
+      border: 1px solid #333330;
+    }
+
+    .tick-item.tick-empty {
+      color: var(--txtdim);
+      font-size: 11px;
+      font-weight: bold;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .tick-item.tick-item-fact {
+      font-weight: bold;
+      font-size: 12px;
+      letter-spacing: 0.03em;
+      max-width: min(92vw, 960px);
+      white-space: normal;
+      flex-shrink: 1;
+    }
+
+    .tick-item-fact .fact-body {
+      display: block;
+      max-width: 100%;
+      white-space: normal;
     }
 
     .tick-item .logo {
-      height: 26px;
+      height: 22px;
       width: auto;
       display: block;
-      filter: brightness(0) invert(1);
+      filter: brightness(0) invert(1) opacity(0.92);
       flex-shrink: 0;
     }
-    .tick-item .logo-marc { height: 18px; }
+
+    .tick-item .logo-marc { height: 16px; }
 
     .tick-item .logo-vre {
       filter: none;
-      height: 22px;
+      height: 20px;
+      opacity: 0.95;
     }
 
     .tick-item .time {
-      color: #ffd166;
+      color: var(--amber);
       font-variant-numeric: tabular-nums;
-      font-size: 15px;
-      font-weight: 800;
+      font: bold 14px/1 Helvetica, Arial, sans-serif;
     }
 
     .tick-item .delay {
-      font-size: 12px;
-      font-weight: 700;
-      padding: 1px 5px;
-      border-radius: 3px;
-      letter-spacing: 0;
+      font: bold 10px/1 Helvetica, Arial, sans-serif;
+      padding: 4px 6px;
+      letter-spacing: 0.5px;
+      border: 1px solid transparent;
     }
-    .tick-item .delay.late  { background: #e63946; color: #fff; }
-    .tick-item .delay.early { background: #2dc653; color: #fff; }
-    .tick-item .delay.on    { background: rgba(255,255,255,0.12); color: #aaa; }
+
+    .tick-item .delay.late {
+      color: var(--red);
+      background: #1a1010;
+      border-color: #402020;
+    }
+
+    .tick-item .delay.early {
+      color: var(--green);
+      background: #101810;
+      border-color: #243024;
+    }
+
+    .tick-item .delay.on {
+      color: var(--txtdim);
+      background: var(--flaplo);
+      border-color: #2a2a28;
+    }
 
     .tick-item .headsign {
-      color: #c0d6ff;
-      font-size: 13px;
-      font-weight: 400;
+      color: var(--txtdim);
+      font: bold 11px/1.2 Helvetica, Arial, sans-serif;
     }
+
+    /* WMATA line colors (match index / map signage) */
+    .tick-item .route-line.metro-rd { color: #C8102E; }
+    .tick-item .route-line.metro-bl { color: #0096D6; }
+    .tick-item .route-line.metro-or { color: #F7931E; }
+    .tick-item .route-line.metro-sv { color: #9EA2A2; }
+    .tick-item .route-line.metro-gr { color: #00B140; }
+    .tick-item .route-line.metro-yl { color: #FFD200; }
 
     .tick-item .fact-star {
-      font-size: 18px;
-      color: #ffd166;
+      font-size: 16px;
+      color: var(--amber);
+      flex-shrink: 0;
     }
 
-    /* separator dot between events */
     .tick-sep {
       display: inline-flex;
       align-items: center;
-      height: 100%;
-      padding: 0 10px;
-      color: rgba(255,255,255,0.2);
-      font-size: 22px;
+      align-self: center;
+      padding: 0 4px;
+      color: #333330;
+      font: bold 14px/1 Helvetica, Arial, sans-serif;
+    }
+
+    /* ── Night mode (matches board fallback: 7pm–6am) ─────────── */
+    html.night {
+      --flap: #12100c;
+      --flaphi: #181510;
+      --flaplo: #0e0c08;
+      --housing: #1c1a14;
+      --frame: #2a2820;
+      --framelt: #343228;
+      --framedk: #1e1c16;
+      --txt: #e8a830;
+      --txtdim: #9a7020;
+      --amber: #f0d050;
+      --green: #40b840;
+      --red: #d04040;
+      --amtrak: #3878a8;
+    }
+
+    html.night #ticker {
+      box-shadow: 2px 3px 16px rgba(0, 0, 0, 0.8), 0 0 40px rgba(200, 140, 20, 0.06);
+    }
+
+    html.night #ticker-label {
+      background: linear-gradient(180deg, #1a1810, #161410);
+    }
+
+    html.night #ticker-track-wrap {
+      background: #0c0a08;
+    }
+
+    html.night .tick-item {
+      background: rgba(30, 28, 22, 0.92);
+      border-color: #2a2820;
     }
   </style>
 </head>
 <body>
 
 <div id="ticker">
-  <div id="ticker-label">
+  <div id="ticker-label" class="mode-departures">
     <div id="label-inner">
       <span id="label-text"></span>
     </div>
@@ -161,16 +300,19 @@ const LOGO = {
   VRE:    { src: "/vre.svg",        cls: "logo logo-vre" },
 };
 
-const LABEL_CONFIGS = {
-  departures: { bg: "#1a1a2e", text: "Departures" },
-  arrivals:   { bg: "#16213e", text: "Arrivals" },
-  metro:      { bg: "#4a0a18", text: "Metro" },
-  funfact:    { bg: "#2d1b4e", text: "Did You Know?" }
+const LABEL_MODES = {
+  departures: { text: "Departures" },
+  arrivals:   { text: "Arrivals" },
+  metro:      { text: "Metro" },
+  funfact:    { text: "Did You Know?" },
 };
+
+const LABEL_MODE_CLASSES = ["mode-departures", "mode-arrivals", "mode-metro", "mode-funfact"];
 
 const RUNS = ["departures", "arrivals", "metro", "funfact"];
 
-const FACTS = [
+/* Built-in fallback if overlay/ticker-facts.json is missing or invalid */
+const DEFAULT_TICKER_FACTS = [
   "Washington Union Station opened in 1907 and was the largest train station in the world at the time.",
   "During World War II, Union Station handled over 200,000 passengers per day at its wartime peak.",
   "The station's main hall ceiling soars 96 feet high, modeled after the ancient Baths of Diocletian in Rome.",
@@ -180,6 +322,24 @@ const FACTS = [
   "Amtrak's Acela, which stops here, is the fastest train in the Americas, reaching up to 150 mph.",
   "Union Station is the second busiest rail station in the US, with over 5 million Amtrak passengers per year.",
 ];
+
+let tickerFacts = DEFAULT_TICKER_FACTS.slice();
+
+async function loadTickerFacts() {
+  try {
+    const r = await fetch("/ticker-facts.json", { cache: "no-store" });
+    if (!r.ok) return;
+    const data = await r.json();
+    let list = [];
+    if (Array.isArray(data)) list = data;
+    else if (data && Array.isArray(data.facts)) list = data.facts;
+    list = list
+      .filter((x) => typeof x === "string" && x.trim().length > 0)
+      .map((x) => x.trim());
+    if (list.length) tickerFacts = list;
+  } catch (_) {}
+  if (!tickerFacts.length) tickerFacts = DEFAULT_TICKER_FACTS.slice();
+}
 
 /* Defaults; overridden by GET /api/ticker-config from .env (TICKER_*). */
 let SPEED_PX_S    = 80;
@@ -210,6 +370,15 @@ const AMTRAK_API = "https://api-v3.amtraker.com/v3/trains";
 const MARC_API   = "/api/marc";
 const VRE_API    = "/api/vre";
 const WMATA_API  = "/api/metro";
+
+const METRO_LINES_BY_CODE = {
+  RD: { abbr: "RED", cls: "metro-rd" },
+  BL: { abbr: "BLUE", cls: "metro-bl" },
+  OR: { abbr: "ORANGE", cls: "metro-or" },
+  SV: { abbr: "SILVER", cls: "metro-sv" },
+  GR: { abbr: "GREEN", cls: "metro-gr" },
+  YL: { abbr: "YELLOW", cls: "metro-yl" },
+};
 
 const NORTH = [
   "acela", "ne regional", "northeast regional", "vermonter", "capitol limited",
@@ -335,9 +504,13 @@ async function fetchWMATA() {
       .map(t => {
         const mins = t.Min === "BRD" ? 0 : t.Min === "ARR" ? 0 : parseInt(t.Min, 10) || 0;
         const eta = new Date(now + mins * 60000).toISOString();
+        const code = String(t.Line || "").toUpperCase().trim();
+        const L = METRO_LINES_BY_CODE[code];
+        const route = L ? `${L.abbr} LINE` : `${code} LINE`;
         return {
           num: t.Car + "C",
-          route: (t.Line ? `${String(t.Line).toUpperCase()} LINE` : "METRO"),
+          route,
+          metroRouteCls: L ? L.cls : "",
           direction: "arr",
           schTime: eta,
           actTime: eta,
@@ -378,6 +551,7 @@ function toTickerEvent(t) {
     provider,
     trainId: t.num,
     route: t.route,
+    metroRouteCls: t.metroRouteCls || "",
     headsign,
     eventType: t.direction === "arr" ? "arrival" : "departure",
     estimatedTime: when,
@@ -386,6 +560,7 @@ function toTickerEvent(t) {
 }
 
 async function fetchData() {
+  await loadTickerFacts();
   try {
     const [amtrak, marc, vre, metro] = await Promise.all([
       fetchAmtrak(),
@@ -430,9 +605,10 @@ function emptyMessageType(runType) {
 
 /* ── label animation ────────────────────────────────────────── */
 function applyLabelConfig(key) {
-  const cfg = LABEL_CONFIGS[key];
-  labelEl.style.background = cfg.bg;
-  labelText.textContent    = cfg.text;
+  const cfg = LABEL_MODES[key];
+  LABEL_MODE_CLASSES.forEach((c) => labelEl.classList.remove(c));
+  labelEl.classList.add("mode-" + key);
+  labelText.textContent = cfg.text;
 }
 
 function setLabelY(pct) {
@@ -462,7 +638,7 @@ function buildEventContent(events, type, showLogos = true) {
 
   if (!events.length) {
     const empty = document.createElement("span");
-    empty.className = "tick-item";
+    empty.className = "tick-item tick-empty";
     empty.textContent = `No ${type} in the next hour`;
     track.appendChild(empty);
     return;
@@ -498,7 +674,15 @@ function buildEventContent(events, type, showLogos = true) {
     item.appendChild(timeEl);
 
     const nameEl = document.createElement("span");
-    nameEl.textContent = [ev.trainId, ev.route].filter(Boolean).join(" · ");
+    nameEl.className = "train-id-route";
+    if (ev.trainId) nameEl.appendChild(document.createTextNode(ev.trainId));
+    if (ev.route) {
+      if (ev.trainId) nameEl.appendChild(document.createTextNode(" · "));
+      const routeEl = document.createElement("span");
+      routeEl.textContent = ev.route;
+      if (ev.metroRouteCls) routeEl.className = "route-line " + ev.metroRouteCls;
+      nameEl.appendChild(routeEl);
+    }
     item.appendChild(nameEl);
 
     if (ev.headsign) {
@@ -521,7 +705,7 @@ function buildEventContent(events, type, showLogos = true) {
 function buildFactContent(fact) {
   track.innerHTML = "";
   const item = document.createElement("div");
-  item.className = "tick-item";
+  item.className = "tick-item tick-item-fact";
 
   const star = document.createElement("span");
   star.className   = "fact-star";
@@ -529,6 +713,7 @@ function buildFactContent(fact) {
   item.appendChild(star);
 
   const text = document.createElement("span");
+  text.className = "fact-body";
   text.textContent = fact;
   item.appendChild(text);
 
@@ -563,7 +748,7 @@ async function runLoop() {
 
     // ① Build content for this run
     if (runType === "funfact") {
-      buildFactContent(FACTS[factIndex % FACTS.length]);
+      buildFactContent(tickerFacts[factIndex % tickerFacts.length]);
     } else {
       buildEventContent(
         tickerEventsForRun(runType),
@@ -599,7 +784,7 @@ async function runLoop() {
 
     // ⑦ Silently load next content while track is off-screen
     if (nextType === "funfact") {
-      buildFactContent(FACTS[factIndex % FACTS.length]);
+      buildFactContent(tickerFacts[factIndex % tickerFacts.length]);
     } else {
       buildEventContent(
         tickerEventsForRun(nextType),
@@ -622,8 +807,15 @@ async function runLoop() {
 }
 
 /* ── init ───────────────────────────────────────────────────── */
+function syncTickerNightMode() {
+  const h = new Date().getHours();
+  document.documentElement.classList.toggle("night", h >= 19 || h < 6);
+}
+
 async function init() {
-  await loadTickerConfig();
+  await Promise.all([loadTickerConfig(), loadTickerFacts()]);
+  syncTickerNightMode();
+  setInterval(syncTickerNightMode, 60_000);
   applyLabelConfig(RUNS[0]);
   setLabelY(0);
   await fetchData();
