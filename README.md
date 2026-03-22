@@ -38,6 +38,8 @@ cp .env.example .env
 
 You can still use a normal environment variable instead (`export WMATA_KEY=...` on Mac/Linux, etc.); if both are set, the existing shell variable wins.
 
+Set **`PORT=8080`** (or any free port 1–65535) in `.env` to change the server port; omit it to use **5555**.
+
 The overlay works without a key — you just won't see Metro predictions.
 
 Optional **`TICKER_*`** variables in the same `.env` file adjust the scrolling ticker (window length, scroll speed, dwell times, etc.). See `.env.example` for names and defaults. The ticker loads them via `GET /api/ticker-config` when the page opens.
@@ -97,5 +99,5 @@ db/
 
 - **`pip` not found (pyenv / Mac)**: Use `python3 -m venv .venv`, then `source .venv/bin/activate`, then `python -m pip install -r backend/requirements.txt` from the repo root (see step 2).
 - **`pip` not found (Windows)**: Use `python -m pip install -r backend/requirements.txt`
-- **Port in use**: Set a custom port with `PORT=8080 python backend/server.py` (Mac) or `set PORT=8080 && python backend/server.py` (Windows)
+- **Port in use**: Add `PORT=8080` to `.env`, or run `PORT=8080 python backend/server.py` (Mac) / `set PORT=8080 && python backend/server.py` (Windows cmd)
 - **GTFS download slow on first run**: The server downloads MARC schedule data (~2 MB) on the first API call. This is cached in memory for the session.

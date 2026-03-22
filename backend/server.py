@@ -647,8 +647,20 @@ def serve_static(filename):
     return send_from_directory(OVERLAY_DIR, filename)
 
 
+def _listen_port() -> int:
+    """HTTP port from env (`.env` → PORT). Defaults to 5555 if unset or invalid."""
+    raw = os.environ.get("PORT", "").strip()
+    if not raw:
+        return 5555
+    try:
+        p = int(raw)
+        return p if 1 <= p <= 65535 else 5555
+    except ValueError:
+        return 5555
+
+
 if __name__ == "__main__":
     init_db()
-    port = int(os.environ.get("PORT", 5555))
+    port = _listen_port()
     print(f"[CRW] Starting on port {port}")
     app.run(host="0.0.0.0", port=port, debug=False)
