@@ -6,486 +6,729 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
-  --bg:#181818;--panel:#222;--border:#444;
-  --w:#ddd8c8;--y:#dcb030;--g:#40c840;--r:#e04444;
-  --cell:#1a1a1a;--cellhi:#252520;
-  --amtrak:#5BA8E0;--marc:#e04444;--vre:#40c840;--metro:#c0c0c0;
+  --flap:#1a1a18;--flaphi:#222220;--flaplo:#161614;
+  --split:#060604;
+  --housing:#2a2a28;
+  --frame:#363632;--framelt:#42423e;--framedk:#262624;
+  --txt:#eeece0;--txtdim:#aaa898;
+  --amber:#e8b820;--green:#38b838;--red:#d83838;
+  --amtrak:#4a90c8;
 }
-html,body{width:100%;height:100%;background:transparent;overflow:hidden;font-family:'Courier New',monospace}
+html,body{width:100%;height:100%;background:transparent;overflow:hidden}
+svg{position:absolute;width:0;height:0}
 
-/* ─── Panel ─────────────────────────────── */
-#panel{
-  position:absolute;top:20px;left:20px;
-  width:420px;
-  background:rgba(24,24,24,0.92);
-  border:1px solid var(--border);
-  border-radius:6px;
-  box-shadow:0 4px 24px rgba(0,0,0,0.6);
-  overflow:hidden;
-  cursor:pointer; /* click to enable audio */
+/* ─── Board ──────────────────────────────── */
+#board{
+  position:absolute;top:16px;left:16px;
+  /* width set dynamically by JS */
+  background:var(--housing);
+  border:5px solid var(--frame);
+  border-top-color:var(--framelt);border-left-color:var(--framelt);
+  border-bottom-color:var(--framedk);border-right-color:var(--framedk);
+  cursor:pointer;
+  box-shadow:2px 3px 12px rgba(0,0,0,0.7),0 0 1px rgba(0,0,0,0.9);
+}
+/* noise grain disabled — was causing white bleed on transparent composites */
+
+/* ─── Header ─────────────────────────────── */
+#hdr{
+  padding:12px 14px 10px;
+  background:linear-gradient(180deg,#242422,#1e1e1c);
+  border-bottom:1px solid #1a1a18;
+}
+.hrow1{display:flex;align-items:center;gap:10px}
+.hright{margin-left:auto;display:flex;align-items:center;gap:10px}
+.htitle{display:inline-flex;align-items:center;gap:0}
+.hsep{width:1px;height:18px;background:#444440;margin:0 4px}
+.hsysdot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.hsysdot.amtrak{background:var(--amtrak)}
+.hsysdot.marc{background:#e04444}
+.hsysdot.metro{background:#a0a0a0}
+.hsylbl{display:inline-flex;align-items:center;gap:0}
+.hclk,.hwx{display:inline-flex;align-items:center;gap:0}
+.hc{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:22px;height:33px;margin:0 0.5px;
+  font:bold 20px/1 Helvetica,Arial,sans-serif;
+  color:var(--txt);background:var(--flap);position:relative;
+}
+.hc::after{content:'';position:absolute;left:0;right:0;top:50%;height:1px;background:rgba(0,0,0,0.6);z-index:2}
+.hc.dim{color:var(--txtdim)}
+.hlbl{font:bold 8px/1 Helvetica,Arial,sans-serif;color:var(--txtdim);letter-spacing:1px;margin-right:5px}
+
+/* ─── Column labels ──────────────────────── */
+#clbl{
+  display:flex;align-items:center;
+  padding:3px 10px 2px;gap:0;
+  background:#1c1c1a;
+  border-top:1px solid #333330;border-bottom:1px solid #141412;
+  font:bold 9px/1 Helvetica,Arial,sans-serif;letter-spacing:1.5px;
+  color:var(--txtdim);
+}
+/* Column header widths match flap groups */
+.lh{flex-shrink:0;overflow:hidden}
+
+/* ─── Flap area ──────────────────────────── */
+#trns{
+  background:#101010;padding:3px 0;
+  box-shadow:inset 0 2px 8px rgba(0,0,0,0.6);
+  position:relative;
+}
+#trns::before{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse 80% 70% at 50% 40%,rgba(255,255,240,0.015),transparent 70%);
+  pointer-events:none;z-index:1;
 }
 
-/* ─── Header ────────────────────────────── */
-#header{
-  display:flex;justify-content:space-between;align-items:center;
-  padding:8px 14px;
-  background:linear-gradient(180deg,#2a2a2a,#1e1e1e);
-  border-bottom:1px solid var(--border);
+/* ─── Train row ──────────────────────────── */
+.tg{padding:4px 10px;display:flex;align-items:stretch}
+.rgap{height:3px;background:var(--housing);margin:0 7px}
+
+/* System color stripe */
+.sysbar{width:4px;flex-shrink:0;margin-right:5px}
+.sysbar.amtrak{background:var(--amtrak)}
+.sysbar.marc{background:#e04444}
+.sysbar.metro{background:#a0a0a0}
+
+.tr{display:flex;align-items:center;height:43px;gap:0;flex:1}
+
+/* ─── Direction badge ────────────────────── */
+.d{
+  width:42px;height:30px;flex-shrink:0;
+  display:inline-flex;align-items:center;justify-content:center;
+  font:bold 11px/1 Helvetica,Arial,sans-serif;letter-spacing:0.5px;
+  margin-right:4px;
 }
-#header .title{color:var(--y);font-size:13px;font-weight:bold;letter-spacing:1.5px}
-#header .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--g);margin-right:6px;vertical-align:middle}
-#header .clock{color:var(--w);font-size:13px;opacity:0.85}
+.d.arr{background:#162016;color:var(--green);border:1px solid #243024}
+.d.dep{background:#282010;color:var(--amber);border:1px solid #383018}
 
-/* ─── Weather strip ─────────────────────── */
-#weather-strip{
-  padding:4px 14px;
-  font-size:11px;color:var(--w);opacity:0.7;
-  border-bottom:1px solid #333;
-  letter-spacing:0.5px;
-}
-
-/* ─── Train row ─────────────────────────── */
-#train-row{padding:10px 14px 12px}
-
-.row-top{display:flex;align-items:center;gap:8px;margin-bottom:6px}
-.badge{
-  display:inline-block;
-  padding:2px 10px;
-  font-size:14px;font-weight:bold;
-  border-radius:3px;
-  letter-spacing:1px;
-  min-width:44px;text-align:center;
-}
-.badge.arr{background:var(--g);color:#111}
-.badge.dep{background:var(--y);color:#111}
-
-.train-num{display:flex;gap:1px;margin-left:2px}
-.train-time{display:flex;gap:1px;margin-left:auto}
-
-/* ─── Flap cells ────────────────────────── */
+/* ─── Flap cell ──────────────────────────── */
 .c{
   display:inline-flex;align-items:center;justify-content:center;
-  width:22px;height:28px;
-  background:linear-gradient(180deg,var(--cellhi) 0%,var(--cellhi) 48%,#111 49%,#111 51%,var(--cell) 52%,var(--cell) 100%);
-  color:var(--w);
-  font-size:17px;font-weight:bold;
-  border-radius:2px;
+  width:24px;height:36px;
   position:relative;
-  font-family:'Courier New',monospace;
+  margin:0 0.5px;
+  font:bold 22px/1 Helvetica,Arial,sans-serif;
+  color:var(--txt);
+  background:var(--flap);
 }
-.c.sm{width:18px;height:24px;font-size:14px}
-.c.green{color:var(--g)}.c.red{color:var(--r)}.c.yellow{color:var(--y)}
-
-/* Flip animation */
-.c.flip{animation:flip 0.13s ease-in-out}
-@keyframes flip{
-  0%{transform:scaleY(1)}
-  50%{transform:scaleY(0)}
-  100%{transform:scaleY(1)}
+/* Hairline split */
+.c::after{
+  content:'';position:absolute;
+  left:0;right:0;
+  top:50%;height:1px;
+  background:rgba(0,0,0,0.6);
+  z-index:2;
 }
+.c.green{color:var(--green)}.c.red{color:var(--red)}.c.amber{color:var(--amber)}
 
-/* ─── Route name row ────────────────────── */
-.route-row{display:flex;gap:1px;margin:6px 0}
+.c.flip{animation:flip 0.18s ease-in-out}
+@keyframes flip{0%{transform:scaleY(1)}45%{transform:scaleY(0)}55%{transform:scaleY(0)}100%{transform:scaleY(1)}}
 
-/* ─── Detail strip ──────────────────────── */
-.detail-strip{
-  font-size:11px;
-  color:var(--w);
-  opacity:0.7;
-  letter-spacing:0.5px;
-  margin-top:4px;
-  display:flex;
-  gap:6px;
-  flex-wrap:wrap;
+/* Column group + spacer */
+.cg{display:inline-flex;flex-shrink:0}
+.sp{display:inline-block;width:12px;flex-shrink:0}
+.fill{flex:1;background:var(--flap);height:36px;position:relative;align-self:center}
+.fill::after{content:'';position:absolute;left:0;right:0;top:50%;height:1px;background:rgba(0,0,0,0.6);z-index:2}
+
+/* ─── Section dividers ───────────────────── */
+.sechr{display:flex;align-items:center;padding:6px 10px 3px;gap:6px}
+.secbar{width:4px;height:10px;border-radius:1px;flex-shrink:0}
+.secbar.amtrak{background:var(--amtrak)}
+.secbar.marc{background:#e04444}
+.secbar.metro{background:#a0a0a0}
+.seclbl{display:inline-flex;align-items:center;gap:0;flex-shrink:0}
+.secline{flex:1;height:1px;background:#333330}
+
+/* ─── Footer ─────────────────────────────── */
+#ftr{
+  padding:8px 10px;
+  background:linear-gradient(180deg,#1e1e1c,#222220);
+  border-top:1px solid #141412;
+  display:flex;align-items:center;justify-content:flex-start;
+  min-height:42px;
 }
-.detail-strip .late{color:var(--r);opacity:1;font-weight:bold}
-.detail-strip .ontime{color:var(--g);opacity:1;font-weight:bold}
-.detail-strip .early{color:var(--g);opacity:1}
+#fmsg{display:flex;align-items:center;gap:0;width:100%}
 
-/* ─── System dot ────────────────────────── */
-.sys-dot{
-  display:inline-block;width:8px;height:8px;
-  border-radius:50%;margin-right:4px;vertical-align:middle;
-}
+#notr{padding:14px;text-align:center;font:10px/1 Helvetica,Arial,sans-serif;color:var(--txtdim);opacity:0.2;letter-spacing:3px;display:none}
 
-/* ─── No-train state ────────────────────── */
-#no-train{
-  padding:14px;
-  text-align:center;
-  color:var(--w);opacity:0.5;
-  font-size:12px;
-  display:none;
+/* ─── Night mode ────────────────────────── */
+.c,.hc,#board,#hdr,#ftr,#clbl,#trns,.secline,.sysbar,.secbar{transition:all 3s ease}
+html.night{
+  --flap:#12100c;--flaphi:#181510;--flaplo:#0e0c08;
+  --housing:#1c1a14;
+  --frame:#2a2820;--framelt:#343228;--framedk:#1e1c16;
+  --txt:#e8a830;--txtdim:#9a7020;
+  --amber:#f0d050;--green:#40b840;--red:#d04040;
+  --amtrak:#3878a8;
 }
-
-/* ─── Footer ────────────────────────────── */
-#footer{
-  padding:4px 14px;
-  font-size:9px;
-  color:var(--w);opacity:0.35;
-  border-top:1px solid #333;
-  text-align:right;
-  letter-spacing:0.5px;
-}
+html.night .c,html.night .hc{text-shadow:0 0 8px rgba(232,168,48,0.3)}
+html.night #board{box-shadow:2px 3px 16px rgba(0,0,0,0.8),0 0 40px rgba(200,140,20,0.06)}
+html.night #hdr{background:linear-gradient(180deg,#1a1810,#161410)}
+html.night #ftr{background:linear-gradient(180deg,#161410,#1a1810)}
+html.night #clbl{background:#141210}
+html.night #trns{background:#0c0a08}
+html.night .secline{background:#2a2820}
 </style>
 </head>
 <body>
 
-<div id="panel">
-  <div id="header">
-    <div><span class="dot" id="status-dot"></span><span class="title">CAPITAL RAIL WATCH</span></div>
-    <div class="clock" id="clock">--:-- ET</div>
-  </div>
-  <div id="weather-strip">--°F ---</div>
-  <div id="train-row">
-    <div class="row-top">
-      <div class="badge arr" id="badge">ARR</div>
-      <div class="train-num" id="train-num"></div>
-      <div class="train-time" id="train-time"></div>
+<svg><filter id="noise"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter></svg>
+
+<div id="board">
+  <div id="hdr">
+    <div class="hrow1">
+      <div class="htitle" id="htitle"></div>
+      <div class="hright">
+        <div class="hwx" id="hwx"></div>
+        <div class="hsep"></div>
+        <div class="hclk" id="hclk"></div>
+      </div>
     </div>
-    <div class="route-row" id="route-name"></div>
-    <div class="detail-strip" id="detail"></div>
   </div>
-  <div id="no-train">NO TRAINS IN VIEW</div>
-  <div id="footer">NORTH APPROACH · UNION STATION</div>
+  <div id="clbl"></div>
+  <div id="trns"></div>
+  <div id="notr">NO TRAINS IN VIEW</div>
+  <div id="ftr"><div id="fmsg"></div></div>
 </div>
 
 <script>
-// ═══════════════════════════════════════════════════════
-// Capital Rail Watch — Overlay Logic
-// ═══════════════════════════════════════════════════════
+const API='https://api-v3.amtraker.com/v3/trains';
+const MARC_API='/api/marc';
+const POLL=30000,ROTATE_MS=20000;
+const WEATHER_API='https://api.open-meteo.com/v1/forecast?latitude=38.899&longitude=-77.007&current=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m&daily=sunrise,sunset&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=America/New_York';
 
-// ─── Config ────────────────────────────────────────────
-const API_URL = 'https://api-v3.amtraker.com/v3/trains';
-const WEATHER_URL = 'https://api.open-meteo.com/v1/forecast?latitude=38.8977&longitude=-77.0066&current=temperature_2m,weather_code&temperature_unit=fahrenheit&timezone=America/New_York';
-const POLL_INTERVAL = 30000;   // 30s train data
-const WEATHER_INTERVAL = 300000; // 5 min
-const TZ = 'America/New_York';
+const NORTH=['acela','ne regional','northeast regional','vermonter','capitol limited','lake shore limited','cardinal','carolinian','palmetto','silver star','silver meteor','marc penn','marc - penn'];
 
-const NORTH_ROUTES = [
-  'acela','ne regional','northeast regional','vermonter',
-  'capitol limited','lake shore limited','cardinal',
-  'carolinian','palmetto','silver star','silver meteor',
-  'marc penn','marc - penn'
+const DEMO=[
+  {num:'2253',route:'Acela',direction:'arr',schTime:'2026-03-21T14:30:00-04:00',actTime:'2026-03-21T14:38:00-04:00',delay:8,platform:'7',origin:'New York Penn',destination:'Washington Union',system:'amtrak'},
+  {num:'171',route:'NE Regional',direction:'dep',schTime:'2026-03-21T15:05:00-04:00',actTime:'',delay:0,platform:'12',origin:'Washington Union',destination:'Boston South',system:'amtrak'},
+  {num:'487',route:'MARC PENN',direction:'arr',schTime:'2026-03-21T15:06:00-04:00',actTime:'2026-03-21T15:11:00-04:00',delay:5,platform:'',origin:'BAL',destination:'DC',system:'marc'},
+  {num:'29',route:'Capitol Limited',direction:'arr',schTime:'2026-03-21T16:45:00-04:00',actTime:'2026-03-21T17:27:00-04:00',delay:42,platform:'15',origin:'Chicago Union',destination:'Washington Union',system:'amtrak'},
+  {num:'79',route:'Carolinian',direction:'dep',schTime:'2026-03-21T17:05:00-04:00',actTime:'',delay:0,platform:'',origin:'New York Penn',destination:'Charlotte',system:'amtrak'},
+  {num:'2271',route:'Acela',direction:'arr',schTime:'2026-03-21T14:19:00-04:00',actTime:'',delay:0,platform:'3',origin:'Boston South',destination:'Washington Union',system:'amtrak'},
 ];
 
-const DEMO_TRAINS = [
-  { num:'2253', route:'ACELA', direction:'arr', schTime:'2026-03-21T14:30:00-04:00', actTime:'2026-03-21T14:38:00-04:00', delay:8, platform:'7', origin:'New York Penn', destination:'Washington Union', system:'amtrak' },
-  { num:'171', route:'NE REGIONAL', direction:'dep', schTime:'2026-03-21T15:05:00-04:00', actTime:'', delay:0, platform:'12', origin:'Washington Union', destination:'Boston South', system:'amtrak' },
-  { num:'29', route:'CAPITOL LIMITED', direction:'arr', schTime:'2026-03-21T16:45:00-04:00', actTime:'2026-03-21T17:27:00-04:00', delay:42, platform:'', origin:'Chicago Union', destination:'Washington Union', system:'amtrak' },
-  { num:'432', route:'MARC PENN', direction:'arr', schTime:'2026-03-21T14:55:00-04:00', actTime:'', delay:0, platform:'', origin:'Baltimore Penn', destination:'Washington Union', system:'marc' },
-];
-
-const WMO_CODES = {
-  0:'CLEAR',1:'MOSTLY CLR',2:'PTLY CLOUDY',3:'OVERCAST',
-  45:'FOG',48:'RIME FOG',51:'LT DRIZZLE',53:'DRIZZLE',55:'HV DRIZZLE',
-  61:'LT RAIN',63:'RAIN',65:'HV RAIN',71:'LT SNOW',73:'SNOW',75:'HV SNOW',
-  77:'SNOW GRNS',80:'LT SHOWERS',81:'SHOWERS',82:'HV SHOWERS',
-  85:'LT SNOW SH',86:'HV SNOW SH',95:'TSTORM',96:'TSTORM HAIL',99:'HV TSTORM'
+const CITY={
+  'Washington Union':'DC','Washington':'DC',
+  'New York Penn':'NY','New York Moynihan':'NY','New York':'NY',
+  'Boston South':'BOS','Boston South Station':'BOS','Boston':'BOS',
+  'Philadelphia 30th Street':'PHL','Philadelphia':'PHL',
+  'Baltimore Penn':'BAL','Baltimore':'BAL',
+  'Chicago Union':'CHI','Chicago':'CHI',
+  'Charlotte':'CLT','Norfolk':'NFK','Savannah':'SAV','Miami':'MIA',
+  'Springfield':'SPG','St. Albans':'STB','New Haven Union':'NHV','New Haven':'NHV',
+  'Newark Penn':'NWK','Newark':'NWK',
+  'Lynchburg Kemper Street':'LYN','Lynchburg':'LYN',
+  'Roanoke':'RNK','Raleigh':'RGH',
+  'New Orleans':'NOL','Tampa':'TPA','Jacksonville':'JAX','Orlando':'ORL',
+  'Richmond Staples Mill':'RVR','Richmond':'RVR',
+  'Alexandria':'ALX','Trenton':'TRE','Perryville':'PVL',
+  'Newport News':'NPN','Harrisburg':'HBG','Niagara Falls':'NFA','Rutland':'RTD',
+  'Montreal':'MTL','Toronto':'TOR','Pittsburgh':'PGH','Cleveland':'CLE',
 };
+const RSHORT={'Northeast Regional':'NE REGNL','NE Regional':'NE REGNL','Capitol Limited':'CAPTL LT','Lake Shore Limited':'LKSHR LT','Silver Meteor':'SLVR MET','Silver Star':'SLVR STR','MARC PENN':'MRC PENN','MARC BRUNSWICK':'MRC BRNS','MARC CAMDEN':'MRC CMDN'};
 
-// ─── State ─────────────────────────────────────────────
-let currentTrain = null;
-let previousFlaps = {};
-let audioCtx = null;
-let audioEnabled = false;
-let usingDemo = true;
+// Column layout: DIR(badge) | SYS(4) | sp | NUM(4) | sp | ROUTE(8) | sp | ORIG(3) | →(1) | DEST(3) | sp | TIME(6) | sp | STATUS(7)
+const COL = {ad:3, dir:3, sys:4, num:4, route:8, orig:3, dest:3, time:6, status:7};
+const SYS_LABEL={amtrak:'AMTK',marc:'MARC',metro:'WMTA'};
 
-// ─── Core functions ────────────────────────────────────
+let shown=[],actx=null,aon=false,demo=true;
 
-function calcDelay(schISO, actISO) {
-  if (!schISO || !actISO) return 0;
-  const sch = new Date(schISO).getTime();
-  const act = new Date(actISO).getTime();
-  if (isNaN(sch) || isNaN(act)) return 0;
-  return Math.round((act - sch) / 60000);
-}
+function cDelay(s,a){if(!s||!a)return 0;const sv=new Date(s).getTime(),av=new Date(a).getTime();return(isNaN(sv)||isNaN(av))?0:Math.round((av-sv)/60000)}
 
-function parseTrains(apiResp) {
-  if (!apiResp || typeof apiResp !== 'object' || Array.isArray(apiResp)) return [];
-  const out = [];
-  for (const key of Object.keys(apiResp)) {
-    const arr = apiResp[key];
-    if (!Array.isArray(arr)) continue;
-    for (const train of arr) {
-      if (!train.trainNum) continue;
-      const stations = train.stations || [];
-      const wasStop = stations.find(s => (s.code || '').toUpperCase() === 'WAS');
-      if (!wasStop) continue;
-
-      const origCode = (train.origCode || '').toUpperCase();
-      const destCode = (train.destCode || '').toUpperCase();
-      const stopStatus = (wasStop.status || '').toLowerCase();
-
-      let direction;
-      if (destCode === 'WAS') {
-        direction = 'arr';
-      } else if (origCode === 'WAS') {
-        direction = 'dep';
-      } else if (stopStatus === 'enroute' || stopStatus === '') {
-        direction = 'arr';
-      } else {
-        direction = 'dep';
-      }
-
-      const schTime = direction === 'arr' ? wasStop.schArr : wasStop.schDep;
-      const actTime = direction === 'arr' ? (wasStop.arr || '') : (wasStop.dep || '');
-      const delay = calcDelay(
-        direction === 'arr' ? wasStop.schArr : wasStop.schDep,
-        direction === 'arr' ? wasStop.arr : wasStop.dep
-      );
-
-      out.push({
-        num: String(train.trainNum),
-        route: train.routeName || '',
-        direction,
-        schTime: schTime || '',
-        actTime: actTime,
-        delay,
-        platform: wasStop.platform || '',
-        origin: train.origName || '',
-        destination: train.destName || '',
-        system: 'amtrak',
-        status: stopStatus
-      });
+function parse(api){
+  if(!api||typeof api!=='object'||Array.isArray(api))return[];
+  const out=[],seen=new Set();
+  for(const k of Object.keys(api)){
+    const ar=api[k];if(!Array.isArray(ar))continue;
+    for(const t of ar){
+      if(!t.trainNum)continue;
+      const ss=t.stations||[],w=ss.find(s=>(s.code||'').toUpperCase()==='WAS');
+      if(!w)continue;
+      const oc=(t.origCode||'').toUpperCase(),dc=(t.destCode||'').toUpperCase(),st=(w.status||'').toLowerCase();
+      let dir;
+      if(dc==='WAS')dir='arr';else if(oc==='WAS')dir='dep';
+      else if(st==='enroute'||st==='')dir='arr';else dir='dep';
+      const dk=t.trainNum+'-'+dir;if(seen.has(dk))continue;seen.add(dk);
+      const sch=dir==='arr'?w.schArr:w.schDep;
+      const act=dir==='arr'?(w.arr||''):(w.dep||'');
+      out.push({num:String(t.trainNum),route:t.routeName||'',direction:dir,schTime:sch||'',actTime:act,delay:cDelay(dir==='arr'?w.schArr:w.schDep,dir==='arr'?w.arr:w.dep),platform:w.platform||'',origin:t.origName||'',destination:t.destName||'',system:'amtrak',status:st});
     }
   }
   return out;
 }
 
-function filterNorthApproach(trains) {
-  return trains.filter(t => {
-    const r = t.route.toLowerCase();
-    return NORTH_ROUTES.some(n => r.includes(n));
+function filterN(t){return t.filter(x=>{const r=x.route.toLowerCase();return NORTH.some(n=>r.includes(n))})}
+function stTxt(d){if(d===0)return{t:'ON TIME',c:'green'};if(d>0)return{t:'+'+d+'M',c:'red'};return{t:d+'M',c:'green'}}
+function fTime(s){if(!s)return'--:--';const d=new Date(s);if(isNaN(d))return'--:--';let h=d.getHours();const m=String(d.getMinutes()).padStart(2,'0'),ap=h>=12?'P':'A';h=h%12||12;return h+':'+m+ap}
+
+// Countdown: show "X MIN" if within 15 min, otherwise clock time
+function fTimeCountdown(s){
+  if(!s)return'--:--';
+  const d=new Date(s);if(isNaN(d))return'--:--';
+  const mins=Math.round((d.getTime()-Date.now())/60000);
+  if(mins>=0&&mins<=15)return mins+'MIN';
+  if(mins<0&&mins>=-2)return'NOW';
+  return fTime(s);
+}
+function sRoute(n){return RSHORT[n]||n.toUpperCase().substring(0,8)}
+function sCity(n){if(!n)return'---';if(CITY[n])return CITY[n];for(const[k,v]of Object.entries(CITY)){if(n.toLowerCase().includes(k.toLowerCase()))return v}return n.toUpperCase().substring(0,3)}
+
+// Destinations reachable via north approach (NEC + B&P tunnel west)
+const NB_DEST=new Set(['NY','BOS','PHL','BAL','NWK','NHV','TRE','PVL','BWI','ABD','SPG','STB','HBG','NFA','CHI','CLE','PGH','MTL','TOR','RTD','GMT','RKV','BRN','FDK']);
+function isNorthbound(t){
+  const d=sCity(t.destination);
+  if(d==='DC')return false; // terminating at DC = arrived from somewhere
+  return NB_DEST.has(d);
+}
+
+function pick(trains,n){
+  if(!trains.length)return[];
+  const now=Date.now();
+  // Dynamic horizon: clamp(BASE/(n+3), 2hr, 12hr)
+  // More trains → shorter window; fewer trains → longer window
+  const hMs=Math.min(43200000,Math.max(7200000,135000000/(trains.length+3)));
+  const horizon=now+hMs;
+  const s=trains.slice()
+    .filter(t=>{const tt=new Date(t.actTime||t.schTime||0).getTime();return tt>=now-900000&&tt<=horizon})
+    .sort((a,b)=>new Date(a.actTime||a.schTime||0)-new Date(b.actTime||b.schTime||0));
+  return s.slice(0,n);
+}
+
+// ─── Persistent DOM helpers ─────────────────
+// Each cell is a <span class="c"> created once; we update textContent in place.
+function makeCell(){
+  const s=document.createElement('span');
+  s.className='c';s.textContent='\u00A0';
+  s.dataset.ch=' ';
+  return s;
+}
+function makeCG(n){
+  const d=document.createElement('span');d.className='cg';
+  const cells=[];
+  for(let i=0;i<n;i++){const c=makeCell();d.appendChild(c);cells.push(c)}
+  return{el:d,cells};
+}
+function makeSpacer(){const d=document.createElement('span');d.className='sp';return d}
+
+// Column spec for building a row: [key, len, hasSpacer after]
+const COL_SPEC=[
+  ['ad',COL.ad,true],['dir',COL.dir,true],['sys',COL.sys,true],
+  ['num',COL.num,true],['route',COL.route,true],
+  ['orig',COL.orig,false],['arrow',1,false],['dest',COL.dest,true],
+  ['time',COL.time,true],['status',COL.status,false]
+];
+const CELLS_PER_ROW=COL_SPEC.reduce((s,c)=>s+c[1],0); // 42
+
+function buildHeaders(){
+  const el=document.getElementById('clbl');
+  const w=24+1,sp=12;
+  const colTotal=Object.values(COL).reduce((a,b)=>a+b,0);
+  const arrowCol=1,numSpacers=7,sysbarW=4+5,boardPad=10+20;
+  const autoW=sysbarW+(colTotal+arrowCol)*w+numSpacers*sp+boardPad;
+  document.getElementById('board').style.width=autoW+'px';
+  const ftrPad=20;
+  FTRLEN=Math.floor((autoW-10-ftrPad)/w);
+  el.innerHTML=
+    '<div class="lh" style="width:'+sysbarW+'px"></div>'+
+    '<div class="lh" style="width:'+((COL.ad+COL.dir)*w+sp)+'px"></div>'+
+    '<div class="lh" style="width:12px"></div>'+
+    '<div class="lh" style="width:'+(COL.sys*w)+'px">LINE</div>'+
+    '<div class="lh" style="width:12px"></div>'+
+    '<div class="lh" style="width:'+(COL.num*w)+'px">TRAIN</div>'+
+    '<div class="lh" style="width:12px"></div>'+
+    '<div class="lh" style="width:'+(COL.route*w)+'px">ROUTE</div>'+
+    '<div class="lh" style="width:12px"></div>'+
+    '<div class="lh" style="width:'+((COL.orig+1+COL.dest)*w)+'px">FROM/TO</div>'+
+    '<div class="lh" style="width:12px"></div>'+
+    '<div class="lh" style="width:'+(COL.time*w)+'px">TIME</div>'+
+    '<div class="lh" style="width:12px"></div>'+
+    '<div class="lh" style="width:'+(COL.status*w)+'px;text-align:right">STATUS</div>';
+}
+
+// ─── Persistent board structure ────────────
+const PAGE_ROWS=12,SLOTS_PER_SEC=4,MAX_PER_OP=20;
+const SECTIONS=['amtrak','marc','metro'];
+const SEC_LABEL={amtrak:'AMTRAK',marc:'MARC',metro:'WMATA'};
+
+// boardRows[i] = { tg, sysbar, cells: span[42], colGroups: [{cells,el}...] }
+const boardRows=[];
+// secHeaders[key] = { pgSpans: span[] } — for updating page counter
+const secHeaders={};
+
+function buildBoard(){
+  const el=document.getElementById('trns');
+  el.innerHTML='';
+  document.getElementById('notr').style.display='none';
+  let idx=0;
+  SECTIONS.forEach(key=>{
+    // Section header
+    const sechr=document.createElement('div');sechr.className='sechr';
+    const secbar=document.createElement('div');secbar.className='secbar '+key;
+    sechr.appendChild(secbar);
+    const lbl=document.createElement('span');lbl.className='seclbl';
+    for(const ch of SEC_LABEL[key])lbl.innerHTML+=hFlap(ch,'dim');
+    sechr.appendChild(lbl);
+    const gap=document.createElement('span');gap.style.width='8px';gap.style.display='inline-block';
+    sechr.appendChild(gap);
+    const pgLbl=document.createElement('span');pgLbl.className='seclbl';
+    // Build page counter flaps: "PG01/01"
+    const pgSpans=[];
+    for(const ch of 'PG01/01'){const s=hFlap(ch,'dim');pgLbl.innerHTML+=s}
+    sechr.appendChild(pgLbl);
+    // Store references to the hc spans for later updates
+    const hcSpans=pgLbl.querySelectorAll('.hc');
+    secHeaders[key]={pgSpans:Array.from(hcSpans)};
+    const secline=document.createElement('div');secline.className='secline';
+    sechr.appendChild(secline);
+    el.appendChild(sechr);
+
+    // 4 row slots per section
+    for(let r=0;r<SLOTS_PER_SEC;r++){
+      const tg=document.createElement('div');tg.className='tg';
+      const sysbar=document.createElement('div');sysbar.className='sysbar '+key;
+      tg.appendChild(sysbar);
+      const tr=document.createElement('div');tr.className='tr';
+      const allCells=[];
+      COL_SPEC.forEach(([colKey,len,hasSpacer])=>{
+        const cg=makeCG(len);
+        tr.appendChild(cg.el);
+        allCells.push(...cg.cells);
+        if(hasSpacer)tr.appendChild(makeSpacer());
+      });
+      tg.appendChild(tr);
+      el.appendChild(tg);
+      boardRows.push({tg,sysbar,cells:allCells,sys:key});
+      idx++;
+    }
   });
 }
 
-function statusText(delay) {
-  if (delay === 0) return { text: 'ON TIME', cls: 'green' };
-  if (delay > 0) return { text: '+' + delay + ' MIN', cls: 'red' };
-  return { text: delay + ' MIN', cls: 'green' };
-}
-
-function fmtTime(dateStr) {
-  if (!dateStr) return '--:--';
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return '--:--';
-  let h = d.getHours();
-  const m = String(d.getMinutes()).padStart(2, '0');
-  const ampm = h >= 12 ? 'P' : 'A';
-  h = h % 12 || 12;
-  return h + ':' + m + ampm;
-}
-
-function F(text, len, cls) {
-  text = String(text);
-  while (text.length < len) text += ' ';
-  text = text.substring(0, len);
-  let html = '';
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i] === ' ' ? '&nbsp;' : text[i].toUpperCase();
-    html += '<span class="c' + (cls ? ' ' + cls : '') + '">' + ch + '</span>';
+// ─── Update board in-place ──────────────────
+// Compute the target text + color for each cell in a row
+function rowData(t){
+  if(!t) return null;
+  const ad=t.direction==='arr'?'ARR':'DEP';
+  const adC=t.direction==='arr'?'green':'amber';
+  const nb=isNorthbound(t);
+  const compass=nb?'\u2191NB':'\u2193SB';
+  const sys=SYS_LABEL[t.system]||t.system;
+  const num=t.num;
+  const route=sRoute(t.route);
+  const orig=sCity(t.origin);
+  const arrow='\u2192';
+  const dest=sCity(t.destination);
+  const time=fTimeCountdown(t.actTime||t.schTime);
+  const st=stTxt(t.delay);
+  // Build array of {ch, cls} for each of the 42 cells
+  const out=[];
+  function push(text,len,cls){
+    text=String(text).toUpperCase();
+    while(text.length<len)text+=' ';
+    text=text.substring(0,len);
+    for(let i=0;i<len;i++)out.push({ch:text[i],cls:cls||''});
   }
-  return html;
+  push(ad,COL.ad,adC);push(compass,COL.dir,'');push(sys,COL.sys,'');
+  push(num,COL.num,'');push(route,COL.route,'');
+  push(orig,COL.orig,'');push(arrow,1,'');push(dest,COL.dest,'');
+  push(time,COL.time,'');push(st.t,COL.status,st.c);
+  return out;
 }
 
-// ─── Rendering ─────────────────────────────────────────
+function blankRowData(){
+  const out=[];
+  for(let i=0;i<CELLS_PER_ROW;i++)out.push({ch:' ',cls:''});
+  return out;
+}
 
-function pickNextTrain(trains) {
-  if (!trains.length) return null;
-  const now = Date.now();
-  const sorted = trains.slice().sort((a, b) => {
-    const ta = new Date(a.actTime || a.schTime || 0).getTime();
-    const tb = new Date(b.actTime || b.schTime || 0).getTime();
-    return ta - tb;
+function noTrainsRowData(){
+  const out=[];
+  function push(text,len,cls){
+    text=String(text).toUpperCase();
+    while(text.length<len)text+=' ';
+    text=text.substring(0,len);
+    for(let i=0;i<len;i++)out.push({ch:text[i],cls:cls||''});
+  }
+  push('',COL.ad,'');push('',COL.dir,'');push('',COL.sys,'');
+  push(' NO',COL.num,'dim');push('TRAINS',COL.route,'dim');
+  push('',COL.orig,'');push('',1,'');push('',COL.dest,'');
+  push('',COL.time,'');push('',COL.status,'');
+  return out;
+}
+
+function updateBoard(){
+  const changed=[]; // collect {rowIdx, cellIdx, span, targetCh} for cascade
+  let rowIdx=0;
+  SECTIONS.forEach((key,si)=>{
+    const trains=opTrains[key];
+    const off=opOff[key];
+    const page=trains.slice(off,off+SLOTS_PER_SEC);
+    const totalPages=Math.max(1,Math.ceil(trains.length/SLOTS_PER_SEC));
+    const curPage=Math.min(totalPages,Math.floor(off/SLOTS_PER_SEC)+1);
+    // Update page counter in section header
+    const pgStr='PG'+String(curPage).padStart(2,'0')+'/'+String(totalPages).padStart(2,'0');
+    const pgSpans=secHeaders[key].pgSpans;
+    for(let i=0;i<pgStr.length&&i<pgSpans.length;i++){
+      const ch=pgStr[i];
+      const display=ch===' '?'\u00A0':ch;
+      if(pgSpans[i].textContent!==display)pgSpans[i].textContent=display;
+    }
+    for(let r=0;r<SLOTS_PER_SEC;r++){
+      const br=boardRows[rowIdx];
+      let data;
+      if(r<page.length){
+        data=rowData(page[r]);
+        br.sysbar.className='sysbar '+(page[r].system||key);
+      } else if(trains.length===0&&r===0){
+        data=noTrainsRowData();
+        br.sysbar.className='sysbar '+key;
+      } else {
+        data=blankRowData();
+        br.sysbar.className='sysbar '+key;
+      }
+      // Diff each cell
+      for(let c=0;c<data.length;c++){
+        const span=br.cells[c];
+        const d=data[c];
+        const prevCh=span.dataset.ch||' ';
+        const newCh=d.ch;
+        // Update color class
+        const wantClass='c'+(d.cls?' '+d.cls:'');
+        if(span.className!==wantClass)span.className=wantClass;
+        // If character changed, queue for cascade
+        if(prevCh!==newCh){
+          span.dataset.ch=newCh;
+          changed.push({rowIdx,cellIdx:c,span,targetCh:newCh});
+        }
+      }
+      rowIdx++;
+    }
   });
-  for (const t of sorted) {
-    const tt = new Date(t.actTime || t.schTime || 0).getTime();
-    if (tt >= now - 600000) return t;
-  }
-  return sorted[sorted.length - 1];
+  // Cascade: right-to-left, row-by-row
+  if(changed.length) cascadeFlips(changed);
+  shown=SECTIONS.flatMap(k=>opTrains[k].slice(opOff[k],opOff[k]+SLOTS_PER_SEC));
 }
 
-function renderTrain(train) {
-  const row = document.getElementById('train-row');
-  const noTrain = document.getElementById('no-train');
+// ─── Audio ─────────────────────────────────
+function initAudio(){
+  if(actx)return;
+  actx=new(window.AudioContext||window.webkitAudioContext)();
+  const o=actx.createOscillator(),g=actx.createGain();
+  o.type='sine';o.frequency.value=60;g.gain.value=0.008;
+  o.connect(g);g.connect(actx.destination);o.start();
+  aon=true;
+}
+function playClick(){
+  if(!actx)return;
+  const n=actx.sampleRate*0.008,b=actx.createBuffer(1,n,actx.sampleRate),d=b.getChannelData(0);
+  for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*Math.exp(-i/(n*0.15));
+  const s=actx.createBufferSource(),g=actx.createGain();
+  s.buffer=b;g.gain.value=0.04;s.connect(g);g.connect(actx.destination);s.start();
+}
 
-  if (!train) {
-    row.style.display = 'none';
-    noTrain.style.display = 'block';
-    currentTrain = null;
+// ─── Header clock + weather ─────────────────
+let wxTemp='--',wxCode=0,wxWind=0,wxWindDir=0,wxSunrise='',wxSunset='';
+const WX_DESC={0:'CLR',1:'CLR',2:'PTLY',3:'OVRC',45:'FOG',48:'FOG',51:'DRZL',53:'DRZL',55:'DRZL',61:'RAIN',63:'RAIN',65:'RAIN',71:'SNOW',73:'SNOW',75:'SNOW',77:'SNOW',80:'SHWR',81:'SHWR',82:'SHWR',85:'SNOW',86:'SNOW',95:'STRM',96:'STRM',99:'STRM'};
+const COMPASS=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+function degToCompass(deg){return COMPASS[Math.round(deg/22.5)%16]}
+
+function hFlap(ch,cls){
+  const c=ch===' '?'&nbsp;':ch;
+  return '<span class="hc'+(cls?' '+cls:'')+'">'+c+'</span>';
+}
+
+function updateClock(){
+  const now=new Date();
+  let h=now.getHours();const m=String(now.getMinutes()).padStart(2,'0');
+  const ap=h>=12?'P':'A';h=h%12||12;
+  const hs=String(h).padStart(2,' ');
+  const el=document.getElementById('hclk');
+  el.innerHTML=hFlap(hs[0],'dim')+hFlap(hs[1],'')+hFlap(':','dim')+hFlap(m[0],'')+hFlap(m[1],'')+hFlap(ap,'dim');
+  checkNightMode();
+}
+
+function updateWeather(){
+  const el=document.getElementById('hwx');
+  const ts=String(Math.round(parseFloat(wxTemp)));
+  const ps=ts.padStart(3,' ');
+  const desc=WX_DESC[wxCode]||'';
+  const ws=String(Math.round(wxWind)).padStart(2,' ');
+  const wd=degToCompass(wxWindDir).padEnd(3,' ');
+  let html='';
+  for(const c of ps)html+=hFlap(c,'');
+  html+=hFlap('°','dim');
+  html+='<span style="width:6px;display:inline-block"></span>';
+  for(const c of desc.padEnd(4,' '))html+=hFlap(c,'dim');
+  html+='<span style="width:10px;display:inline-block"></span>';
+  for(const c of wd)html+=hFlap(c,'dim');
+  for(const c of ws)html+=hFlap(c,'');
+  html+='<span style="width:2px;display:inline-block"></span>';
+  for(const c of 'MPH')html+=hFlap(c,'dim');
+  el.innerHTML=html;
+}
+
+function checkNightMode(){
+  const now=new Date();
+  let isNight=false;
+  if(wxSunrise&&wxSunset){
+    // Use actual sunrise/sunset from API
+    const sr=new Date(wxSunrise).getTime(),ss=new Date(wxSunset).getTime(),n=now.getTime();
+    isNight=n<sr||n>ss;
+  } else {
+    // Fallback: 7pm-6am ET
+    const h=now.getHours();
+    isNight=h>=19||h<6;
+  }
+  document.documentElement.classList.toggle('night',isNight);
+}
+
+async function fetchWeather(){
+  try{
+    const r=await fetch(WEATHER_API);if(!r.ok)return;
+    const j=await r.json();
+    wxTemp=j.current.temperature_2m;
+    wxCode=j.current.weather_code;
+    wxWind=j.current.wind_speed_10m;
+    wxWindDir=j.current.wind_direction_10m;
+    if(j.daily){wxSunrise=j.daily.sunrise[0];wxSunset=j.daily.sunset[0]}
+    updateWeather();
+    checkNightMode();
+  }catch(e){console.warn('[CRW] wx err:',e.message)}
+}
+
+// ─── Data ──────────────────────────────────
+let opTrains={amtrak:[],marc:[],metro:[]};
+let opOff={amtrak:0,marc:0,metro:0};
+
+async function fetchAmtrak(){
+  try{
+    const r=await fetch(API);if(!r.ok)throw new Error(r.status);
+    return filterN(parse(await r.json()));
+  }catch(e){console.warn('[CRW] amtrak err:',e.message);return[]}
+}
+
+async function fetchMARC(){
+  try{
+    const r=await fetch(MARC_API);if(!r.ok)throw new Error(r.status);
+    const j=await r.json();
+    return(j.trains||[]).filter(t=>t.route.toUpperCase().includes('PENN'));
+  }catch(e){console.warn('[CRW] marc err:',e.message);return[]}
+}
+
+async function logTrains(trains){
+  try{await fetch('/api/log',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(trains)})}
+  catch(e){console.warn('[CRW] log err:',e.message)}
+}
+
+async function fetchTrains(){
+  const [amtrak,marc]=await Promise.all([fetchAmtrak(),fetchMARC()]);
+  const all=[...amtrak,...marc];
+  if(all.length){
+    demo=false;
+    const picked=pick(all,60);
+    opTrains={amtrak:[],marc:[],metro:[]};
+    picked.forEach(t=>{const k=t.system||'amtrak';if(opTrains[k])opTrains[k].push(t)});
+    for(const k in opTrains)opTrains[k]=opTrains[k].slice(0,MAX_PER_OP);
+    if(amtrak.length)logTrains(amtrak);
+    console.log('[CRW]',opTrains.amtrak.length,'amtrak +',opTrains.marc.length,'marc');
     return;
   }
-
-  row.style.display = 'block';
-  noTrain.style.display = 'none';
-
-  // Badge
-  const badge = document.getElementById('badge');
-  badge.textContent = train.direction.toUpperCase();
-  badge.className = 'badge ' + train.direction;
-
-  // System dot color
-  const sysColors = { amtrak: 'var(--amtrak)', marc: 'var(--marc)', vre: 'var(--vre)', metro: 'var(--metro)' };
-  document.getElementById('status-dot').style.background = sysColors[train.system] || 'var(--g)';
-
-  // Train number — flap cells
-  const numEl = document.getElementById('train-num');
-  setFlaps(numEl, 'num', train.num, 5, '');
-
-  // Time — show actual if available, else scheduled
-  const timeStr = fmtTime(train.actTime || train.schTime);
-  const timeEl = document.getElementById('train-time');
-  setFlaps(timeEl, 'time', timeStr, 6, '');
-
-  // Route name
-  const routeEl = document.getElementById('route-name');
-  setFlaps(routeEl, 'route', train.route, 18, '', true);
-
-  // Detail strip
-  const detail = document.getElementById('detail');
-  const st = statusText(train.delay);
-  const fromTo = train.direction === 'arr'
-    ? 'FROM ' + (train.origin || '---').toUpperCase()
-    : 'TO ' + (train.destination || '---').toUpperCase();
-  const platformStr = train.platform ? 'TRK ' + train.platform : '';
-  const parts = [fromTo, platformStr, '<span class="' + (st.cls === 'red' ? 'late' : 'ontime') + '">' + st.text + '</span>'];
-  detail.innerHTML = parts.filter(Boolean).join(' &middot; ');
-
-  currentTrain = train;
-}
-
-function setFlaps(el, key, text, len, cls, small) {
-  text = String(text).toUpperCase();
-  while (text.length < len) text += ' ';
-  text = text.substring(0, len);
-
-  const prev = previousFlaps[key] || '';
-  let html = '';
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i] === ' ' ? '&nbsp;' : text[i];
-    const changed = prev[i] !== text[i];
-    const classes = 'c' + (small ? ' sm' : '') + (cls ? ' ' + cls : '') + (changed && prev ? ' flip' : '');
-    html += '<span class="' + classes + '">' + ch + '</span>';
-    if (changed && prev && audioEnabled) playClick();
-  }
-  el.innerHTML = html;
-  previousFlaps[key] = text;
-}
-
-// ─── Clock ─────────────────────────────────────────────
-
-function updateClock() {
-  const now = new Date();
-  const opts = { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: TZ };
-  const str = now.toLocaleTimeString('en-US', opts).replace(' ', '');
-  document.getElementById('clock').textContent = str + ' ET';
-}
-
-// ─── Weather ───────────────────────────────────────────
-
-async function fetchWeather() {
-  try {
-    const res = await fetch(WEATHER_URL);
-    if (!res.ok) return;
-    const data = await res.json();
-    const temp = Math.round(data.current.temperature_2m);
-    const code = data.current.weather_code;
-    const desc = WMO_CODES[code] || 'N/A';
-    document.getElementById('weather-strip').textContent = temp + '°F ' + desc;
-  } catch (e) {
-    // silent fail — keep last value
+  if(demo||!shown.length){
+    demo=true;
+    opTrains={amtrak:DEMO.filter(t=>t.system==='amtrak'),marc:DEMO.filter(t=>t.system==='marc'),metro:[]};
   }
 }
 
-// ─── Audio ─────────────────────────────────────────────
-
-function initAudio() {
-  if (audioCtx) return;
-  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  startHum();
-  audioEnabled = true;
-}
-
-function startHum() {
-  if (!audioCtx) return;
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.type = 'sine';
-  osc.frequency.value = 60;
-  gain.gain.value = 0.015;
-  osc.connect(gain);
-  gain.connect(audioCtx.destination);
-  osc.start();
-}
-
-function playClick() {
-  if (!audioCtx) return;
-  const bufSize = audioCtx.sampleRate * 0.008;
-  const buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
-  const data = buf.getChannelData(0);
-  for (let i = 0; i < bufSize; i++) {
-    data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufSize * 0.15));
+function rotateTick(){
+  updateFooter();
+  // Advance each operator's page, wrap back to page 1
+  for(const k of SECTIONS){
+    opOff[k]+=SLOTS_PER_SEC;
+    if(opOff[k]>=opTrains[k].length)opOff[k]=0;
   }
-  const src = audioCtx.createBufferSource();
-  const gain = audioCtx.createGain();
-  src.buffer = buf;
-  gain.gain.value = 0.08;
-  src.connect(gain);
-  gain.connect(audioCtx.destination);
-  src.start();
+  updateBoard();
 }
 
-// ─── Data fetching ─────────────────────────────────────
+// ─── Init ──────────────────────────────────
+document.getElementById('board').addEventListener('click',()=>{initAudio()});
+// Render station name as flaps
+const titleEl=document.getElementById('htitle');
+let titleHtml='';
+for(const ch of 'WASHINGTON UNION STATION')titleHtml+=hFlap(ch,'');
+titleEl.innerHTML=titleHtml;
 
-async function fetchTrains() {
-  try {
-    const res = await fetch(API_URL);
-    if (!res.ok) throw new Error('API ' + res.status);
-    const raw = await res.json();
-    // raw is { "trainNum": [{ trainObj with stations[] }], ... }
-    const trains = parseTrains(raw);
-    const north = filterNorthApproach(trains);
-    if (north.length > 0) {
-      usingDemo = false;
-      renderTrain(pickNextTrain(north));
-      console.log('[CRW] Live data:', north.length, 'north-approach trains');
-      return;
+
+// ─── Footer cycling messages ────────────────
+const FMSGS=['THANK YOU FOR WATCHING!','LIKE COMMENT SUBSCRIBE','PUT FEEDBACK IN CHAT!','WELCOME RAIL WATCHERS!'];
+let fmsgIdx=0,fpf='',FTRLEN=0;
+function initFooter(){
+  const el=document.getElementById('fmsg');
+  let html='';
+  for(let i=0;i<FTRLEN;i++)html+='<span class="c">\u00A0</span>';
+  html+='<div class="fill"></div>';
+  el.innerHTML=html;
+}
+const FLIPCHARS='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+function flipCell(span,target,flips,speed,quiet){
+  speed=speed||180;
+  if(flips<=0){
+    span.textContent=target===' '?'\u00A0':target;
+    span.classList.remove('flip');
+    void span.offsetWidth;
+    span.classList.add('flip');
+    return;
+  }
+  span.textContent=FLIPCHARS[Math.floor(Math.random()*FLIPCHARS.length)];
+  span.classList.remove('flip');
+  void span.offsetWidth;
+  span.classList.add('flip');
+  if(aon&&(!quiet||Math.random()<0.15))playClick();
+  setTimeout(()=>flipCell(span,target,flips-1,speed,quiet),speed);
+}
+// Unified cascade timing
+const CASC_STAGGER=25,CASC_SPEED=150,CASC_FLIPS_MIN=2,CASC_FLIPS_MAX=4,CASC_ROW_GAP=80;
+function cascadeBoard(){
+  const tgs=document.getElementById('trns').querySelectorAll('.tg');
+  let rowIdx=0;
+  tgs.forEach(tg=>{
+    const cells=Array.from(tg.querySelectorAll('.casc'));
+    if(!cells.length){rowIdx++;return}
+    cells.reverse(); // right-to-left sweep
+    const baseDelay=rowIdx*CASC_ROW_GAP;
+    cells.forEach((span,ci)=>{
+      const target=decodeURIComponent(span.dataset.t);
+      const delay=baseDelay+ci*CASC_STAGGER;
+      const flips=CASC_FLIPS_MIN+Math.floor(Math.random()*(CASC_FLIPS_MAX-CASC_FLIPS_MIN+1));
+      setTimeout(()=>flipCell(span,target,flips,CASC_SPEED,true),delay);
+    });
+    rowIdx++;
+  });
+}
+function updateFooter(){
+  const text=FMSGS[fmsgIdx].toUpperCase().padEnd(FTRLEN);
+  const spans=document.getElementById('fmsg').querySelectorAll('.c');
+  for(let i=0;i<FTRLEN;i++){
+    const span=spans[i];if(!span)continue;
+    const ch=text[i]||' ';
+    const prev=fpf[i]||'';
+    if(ch!==prev){
+      const delay=i*CASC_STAGGER;
+      const flips=CASC_FLIPS_MIN+Math.floor(Math.random()*(CASC_FLIPS_MAX-CASC_FLIPS_MIN+1));
+      setTimeout(()=>flipCell(span,ch,flips,CASC_SPEED,true),delay);
     }
-  } catch (e) {
-    console.warn('[CRW] API fetch failed, using demo data:', e.message);
   }
-  if (usingDemo || !currentTrain) {
-    usingDemo = true;
-    renderTrain(pickNextTrain(DEMO_TRAINS));
-  }
+  fpf=text;
+  fmsgIdx=(fmsgIdx+1)%FMSGS.length;
 }
 
-// ─── Init ──────────────────────────────────────────────
-
-document.getElementById('panel').addEventListener('click', () => {
-  initAudio();
-  // Re-render to trigger flip sounds
-  if (currentTrain) {
-    previousFlaps = {};
-    renderTrain(currentTrain);
-  }
-});
-
-updateClock();
-setInterval(updateClock, 1000);
-fetchWeather();
-setInterval(fetchWeather, WEATHER_INTERVAL);
-fetchTrains();
-setInterval(fetchTrains, POLL_INTERVAL);
-
-// Cycle demo trains for visual interest when in demo mode
-let demoIdx = 0;
-setInterval(() => {
-  if (!usingDemo) return;
-  demoIdx = (demoIdx + 1) % DEMO_TRAINS.length;
-  renderTrain(DEMO_TRAINS[demoIdx]);
-}, 8000);
-
+buildHeaders();
+initFooter();updateFooter();
+updateClock();setInterval(updateClock,1000);
+fetchWeather();setInterval(fetchWeather,300000);
+updateWeather();
+fetchTrains();setInterval(fetchTrains,POLL);
+setInterval(rotateTick,ROTATE_MS);
 </script>
 </body>
 </html>
