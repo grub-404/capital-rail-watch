@@ -6,6 +6,7 @@ Logs all train sightings to SQLite for stats and history.
 import csv, io, json, sqlite3, time, zipfile, urllib.request, os
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from dotenv import load_dotenv
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from google.transit import gtfs_realtime_pb2
@@ -15,6 +16,9 @@ CORS(app)
 
 # ─── SQLite setup ─────────────────────────────
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+# Optional secrets and local config (repo root — same folder as README.md)
+load_dotenv(PROJECT_ROOT / ".env")
+
 DB_PATH = PROJECT_ROOT / "db" / "trains.db"
 SCHEMA_PATH = PROJECT_ROOT / "db" / "schema.sql"
 
@@ -84,6 +88,7 @@ def log_trains(train_list):
         conn.commit()
     finally:
         conn.close()
+
 
 # ─── Config ──────────────────────────────────
 MARC_TU = "https://mdotmta-gtfs-rt.s3.amazonaws.com/MARC+RT/marc-tu.pb"
@@ -202,6 +207,229 @@ def epoch_to_iso(ts):
     if not ts:
         return ""
     return datetime.fromtimestamp(ts, tz=ET).isoformat()
+
+
+# ─── VRE static GTFS + realtime (Union Station) ─────────────────
+VRE_GTFS = "https://gtfs.vre.org/containercdngtfsupload/google_transit.zip"
+VRE_TU = "https://gtfs.vre.org/containercdngtfsupload/TripUpdateFeed"
+
+vre_gtfs_loaded = False
+vre_stops_meta = {}  # stop_id → {stop_name, parent_station}
+vre_schedules_vre = {}  # trip_id → {stop_id: (arr, dep)}
+vre_trips_vre = {}  # trip_id → row dict
+vre_routes_vre = {}  # route_id → row dict
+vre_union_stop_ids = set()
+
+
+def _vre_union_parent_row(row):
+    name = (row.get("stop_name") or "").strip().lower()
+    return name == "union station" and str(row.get("location_type") or "") == "1"
+
+
+def load_vre_gtfs():
+    global vre_gtfs_loaded, vre_stops_meta, vre_schedules_vre, vre_trips_vre
+    global vre_routes_vre, vre_union_stop_ids
+    if vre_gtfs_loaded:
+        return
+    try:
+        print("[CRW] Downloading VRE GTFS static data...")
+        data = urllib.request.urlopen(VRE_GTFS, timeout=30).read()
+        zf = zipfile.ZipFile(io.BytesIO(data))
+
+        with zf.open("stops.txt") as f:
+            reader = csv.DictReader(io.TextIOWrapper(f, encoding="utf-8"))
+            stop_rows = list(reader)
+
+        parents = {r["stop_id"] for r in stop_rows if _vre_union_parent_row(r)}
+        vre_union_stop_ids = set(parents)
+        for r in stop_rows:
+            if r.get("parent_station") in parents:
+                vre_union_stop_ids.add(r["stop_id"])
+            vre_stops_meta[r["stop_id"]] = {
+                "stop_name": r.get("stop_name") or "",
+                "parent_station": r.get("parent_station") or "",
+            }
+
+        with zf.open("stop_times.txt") as f:
+            reader = csv.DictReader(io.TextIOWrapper(f, encoding="utf-8"))
+            for row in reader:
+                tid = row["trip_id"]
+                sid = row["stop_id"]
+                if tid not in vre_schedules_vre:
+                    vre_schedules_vre[tid] = {}
+                vre_schedules_vre[tid][sid] = (
+                    row.get("arrival_time") or "",
+                    row.get("departure_time") or "",
+                )
+
+        with zf.open("trips.txt") as f:
+            reader = csv.DictReader(io.TextIOWrapper(f, encoding="utf-8"))
+            for row in reader:
+                vre_trips_vre[row["trip_id"]] = row
+
+        with zf.open("routes.txt") as f:
+            reader = csv.DictReader(io.TextIOWrapper(f, encoding="utf-8"))
+            for row in reader:
+                vre_routes_vre[row["route_id"]] = row
+
+        vre_gtfs_loaded = True
+        print(
+            f"[CRW] VRE GTFS: {len(vre_stops_meta)} stops, "
+            f"{len(vre_schedules_vre)} trips, union stop ids={len(vre_union_stop_ids)}"
+        )
+    except Exception as e:
+        print(f"[CRW] VRE GTFS load error: {e}")
+
+
+def _vre_short_stop(stop_id):
+    name = (vre_stops_meta.get(stop_id) or {}).get("stop_name", "").upper()
+    if "UNION" in name and "STATION" in name:
+        return "DC"
+    if not name:
+        return "?"
+    return name.split()[0][:3]
+
+
+def vre_origin_dest_for_trip(trip_id):
+    sched = vre_schedules_vre.get(trip_id, {})
+    if not sched:
+        return "?", "?"
+    earliest_time = "99:99:99"
+    earliest_stop = None
+    latest_time = ""
+    latest_stop = None
+    for sid, (arr, dep) in sched.items():
+        t_dep = dep if dep else arr
+        if t_dep and t_dep < earliest_time:
+            earliest_time = t_dep
+            earliest_stop = sid
+        t_arr = arr if arr else dep
+        if t_arr and t_arr > latest_time:
+            latest_time = t_arr
+            latest_stop = sid
+    o = _vre_short_stop(earliest_stop) if earliest_stop else "?"
+    d = _vre_short_stop(latest_stop) if latest_stop else "?"
+    return o, d
+
+
+def _stu_time_or_delay(stu, field, sch_epoch):
+    """Return predicted epoch from StopTimeUpdate arrival/departure .time or .delay."""
+    if not stu.HasField(field):
+        return 0
+    block = getattr(stu, field)
+    if block.HasField("time") and block.time:
+        return int(block.time)
+    if block.HasField("delay") and sch_epoch:
+        return sch_epoch + int(block.delay)
+    return 0
+
+
+@app.route("/api/vre")
+def vre_trains():
+    """VRE trains at Union Station from GTFS-RT + static schedule (same shape as /api/marc)."""
+    load_vre_gtfs()
+    if not vre_union_stop_ids:
+        return jsonify({"error": "VRE GTFS not loaded", "trains": []}), 503
+
+    try:
+        data = urllib.request.urlopen(VRE_TU, timeout=15).read()
+    except Exception as e:
+        return jsonify({"error": str(e), "trains": []}), 502
+
+    feed = gtfs_realtime_pb2.FeedMessage()
+    feed.ParseFromString(data)
+
+    today_yyyymmdd = datetime.now(ET).strftime("%Y%m%d")
+    trains_out = []
+    seen_trip_dir = set()
+
+    for ent in feed.entity:
+        if not ent.HasField("trip_update"):
+            continue
+        tu = ent.trip_update
+        trip = tu.trip
+        tid = str(trip.trip_id or "")
+        if not tid:
+            continue
+
+        union_stu = None
+        union_sid = None
+        for stu in tu.stop_time_update:
+            sid = str(stu.stop_id)
+            if sid in vre_union_stop_ids:
+                union_stu = stu
+                union_sid = sid
+                break
+        if not union_stu or not union_sid:
+            continue
+
+        start_d = trip.start_date if trip.start_date else today_yyyymmdd
+        trip_sched = vre_schedules_vre.get(tid, {})
+        was_sched = trip_sched.get(union_sid, ("", ""))
+        sch_arr_epoch = hhmm_to_epoch(start_d, was_sched[0])
+        sch_dep_epoch = hhmm_to_epoch(start_d, was_sched[1])
+
+        pred_arr = _stu_time_or_delay(union_stu, "arrival", sch_arr_epoch)
+        pred_dep = _stu_time_or_delay(union_stu, "departure", sch_dep_epoch)
+
+        if pred_dep and not pred_arr:
+            direction = "dep"
+            sch_epoch = sch_dep_epoch
+            act_epoch = pred_dep
+        else:
+            direction = "arr"
+            sch_epoch = sch_arr_epoch
+            act_epoch = pred_arr if pred_arr else pred_dep
+
+        if not act_epoch:
+            continue
+
+        dedupe_key = (str(tid), direction)
+        if dedupe_key in seen_trip_dir:
+            continue
+        seen_trip_dir.add(dedupe_key)
+
+        delay = round((act_epoch - sch_epoch) / 60) if (sch_epoch and act_epoch) else 0
+
+        trip_row = vre_trips_vre.get(str(tid), {})
+        train_num = (
+            (trip_row.get("trip_short_name") or "").strip()
+            or "".join(c for c in tid if c.isdigit())
+            or tid
+        )
+        route_id = str(trip.route_id).strip() if trip.route_id else str(trip_row.get("route_id") or "")
+        route = vre_routes_vre.get(route_id, {})
+        rn = (route.get("route_short_name") or route.get("route_long_name") or "VRE").strip()
+        route_label = f"VRE {rn}" if rn.upper() != "VRE" else "VRE"
+
+        trip_o, trip_d = vre_origin_dest_for_trip(tid)
+        if direction == "dep":
+            origin, destination = "DC", trip_d
+        else:
+            origin, destination = trip_o, "DC"
+
+        trains_out.append(
+            {
+                "num": str(train_num),
+                "route": route_label,
+                "direction": direction,
+                "schTime": epoch_to_iso(sch_epoch),
+                "actTime": epoch_to_iso(act_epoch),
+                "delay": delay,
+                "origin": origin,
+                "destination": destination,
+                "system": "vre",
+                "platform": "",
+                "status": "enroute",
+            }
+        )
+
+    try:
+        log_trains(trains_out)
+    except Exception as e:
+        print(f"[CRW] VRE DB log error: {e}")
+
+    return jsonify({"trains": trains_out, "feed_time": feed.header.timestamp})
 
 
 @app.route("/api/marc")
@@ -367,12 +595,52 @@ def health():
     return jsonify({"status": "ok", "time": datetime.now(ET).isoformat()})
 
 
+def _env_int(name: str, default: int) -> int:
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+
+@app.route("/api/ticker-config")
+def ticker_config():
+    """Ticker timing and data window — set TICKER_* in .env (optional)."""
+    wm = max(5, min(1440, _env_int("TICKER_WINDOW_MINUTES", 60)))
+    speed = max(10, min(500, _env_int("TICKER_SPEED_PX_S", 80)))
+    start_d = max(0, min(120_000, _env_int("TICKER_START_DWELL_MS", 2200)))
+    end_d = max(0, min(120_000, _env_int("TICKER_END_DWELL_MS", 900)))
+    fact_d = max(0, min(300_000, _env_int("TICKER_FACT_DWELL_MS", 7000)))
+    label_a = max(0, min(5000, _env_int("TICKER_LABEL_ANIM_MS", 360)))
+    refresh = max(0, min(3_600_000, _env_int("TICKER_REFRESH_MS", 60_000)))
+    return jsonify(
+        {
+            "windowMinutes": wm,
+            "speedPxS": speed,
+            "startDwellMs": start_d,
+            "endDwellMs": end_d,
+            "factDwellMs": fact_d,
+            "labelAnimMs": label_a,
+            "refreshMs": refresh,
+        }
+    )
+
+
 # ─── Serve overlay static files ──────────────
 OVERLAY_DIR = Path(__file__).resolve().parent.parent / "overlay"
 
 @app.route("/")
 def serve_overlay():
     return send_from_directory(OVERLAY_DIR, "index.html")
+
+
+@app.route("/tracker.html")
+def serve_tracker_alias():
+    """Same page as /ticker.html (common URL mix-up)."""
+    return send_from_directory(OVERLAY_DIR, "ticker.html")
+
 
 @app.route("/<path:filename>")
 def serve_static(filename):

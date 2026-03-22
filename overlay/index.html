@@ -43,6 +43,7 @@ svg{position:absolute;width:0;height:0}
 .hsysdot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
 .hsysdot.amtrak{background:var(--amtrak)}
 .hsysdot.marc{background:#e04444}
+.hsysdot.vre{background:#2e7d4a}
 .hsysdot.metro{background:#a0a0a0}
 .hsylbl{display:inline-flex;align-items:center;gap:0}
 .hclk,.hwx{display:inline-flex;align-items:center;gap:0}
@@ -88,6 +89,7 @@ svg{position:absolute;width:0;height:0}
 .sysbar{width:4px;flex-shrink:0;margin-right:5px}
 .sysbar.amtrak{background:var(--amtrak)}
 .sysbar.marc{background:#e04444}
+.sysbar.vre{background:#2e7d4a}
 .sysbar.metro{background:#a0a0a0}
 
 .tr{display:flex;align-items:center;height:43px;gap:0;flex:1}
@@ -136,6 +138,7 @@ svg{position:absolute;width:0;height:0}
 .secbar{width:4px;height:10px;border-radius:1px;flex-shrink:0}
 .secbar.amtrak{background:var(--amtrak)}
 .secbar.marc{background:#e04444}
+.secbar.vre{background:#2e7d4a}
 .secbar.metro{background:#a0a0a0}
 .seclbl{display:inline-flex;align-items:center;gap:0;flex-shrink:0}
 .secline{flex:1;height:1px;background:#333330}
@@ -209,6 +212,7 @@ html.night .secline{background:#2a2820}
 <script>
 const API='https://api-v3.amtraker.com/v3/trains';
 const MARC_API='/api/marc';
+const VRE_API='/api/vre';
 const WMATA_API='/api/metro';
 const POLL=30000,ROTATE_MS=20000;
 const WEATHER_API='https://api.open-meteo.com/v1/forecast?latitude=38.899&longitude=-77.007&current=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m&daily=sunrise,sunset&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=America/New_York';
@@ -247,11 +251,11 @@ const CITY={
   'Wheaton':'WHT','Bethesda':'BET','Rockville':'RKV',
   'Forest Glen':'FGL','Twinbrook':'TWB','Medical Center':'MED',
 };
-const RSHORT={'Northeast Regional':'NE REGNL','NE Regional':'NE REGNL','Capitol Limited':'CAPTL LT','Lake Shore Limited':'LKSHR LT','Silver Meteor':'SLVR MET','Silver Star':'SLVR STR','MARC PENN':'MRC PENN','MARC BRUNSWICK':'MRC BRNS','MARC CAMDEN':'MRC CMDN'};
+const RSHORT={'Northeast Regional':'NE REGNL','NE Regional':'NE REGNL','Capitol Limited':'CAPTL LT','Lake Shore Limited':'LKSHR LT','Silver Meteor':'SLVR MET','Silver Star':'SLVR STR','MARC PENN':'MRC PENN','MARC BRUNSWICK':'MRC BRNS','MARC CAMDEN':'MRC CMDN','VRE':'VRE'};
 
 // Column layout: DIR(badge) | SYS(4) | sp | NUM(4) | sp | ROUTE(8) | sp | ORIG(3) | →(1) | DEST(3) | sp | TIME(6) | sp | STATUS(7)
 const COL = {ad:3, dir:3, sys:4, num:4, route:8, orig:3, dest:3, time:6, status:7};
-const SYS_LABEL={amtrak:'AMTK',marc:'MARC',metro:'WMTA'};
+const SYS_LABEL={amtrak:'AMTK',marc:'MARC',vre:'VRE',metro:'WMTA'};
 
 let shown=[],actx=null,aon=false,demo=true;
 
@@ -369,8 +373,8 @@ function buildHeaders(){
 
 // ─── Persistent board structure ────────────
 const PAGE_ROWS=12,SLOTS_PER_SEC=4,MAX_PER_OP=20;
-const SECTIONS=['amtrak','marc','metro'];
-const SEC_LABEL={amtrak:'AMTRAK',marc:'MARC',metro:'WMATA'};
+const SECTIONS=['amtrak','marc','vre','metro'];
+const SEC_LABEL={amtrak:'AMTRAK',marc:'MARC',vre:'VRE',metro:'WMATA'};
 
 // boardRows[i] = { tg, sysbar, cells: span[42], colGroups: [{cells,el}...] }
 const boardRows=[];
@@ -639,9 +643,9 @@ async function fetchWeather(){
 }
 
 // ─── Data ──────────────────────────────────
-let opTrains={amtrak:[],marc:[],metro:[]};
-let allFetched={amtrak:[],marc:[],metro:[]};
-let opOff={amtrak:0,marc:0,metro:0};
+let opTrains={amtrak:[],marc:[],vre:[],metro:[]};
+let allFetched={amtrak:[],marc:[],vre:[],metro:[]};
+let opOff={amtrak:0,marc:0,vre:0,metro:0};
 
 async function fetchAmtrak(){
   try{
@@ -656,6 +660,14 @@ async function fetchMARC(){
     const j=await r.json();
     return(j.trains||[]).filter(t=>t.route.toUpperCase().includes('PENN'));
   }catch(e){console.warn('[CRW] marc err:',e.message);return[]}
+}
+
+async function fetchVRE(){
+  try{
+    const r=await fetch(VRE_API);if(!r.ok)throw new Error(r.status);
+    const j=await r.json();
+    return j.trains||[];
+  }catch(e){console.warn('[CRW] vre err:',e.message);return[]}
 }
 
 async function fetchWMATA(){
@@ -687,25 +699,25 @@ async function logTrains(trains){
 }
 
 async function fetchTrains(){
-  const [amtrak,marc,metro]=await Promise.all([fetchAmtrak(),fetchMARC(),fetchWMATA()]);
-  allFetched={amtrak,marc,metro};
-  const railAll=[...amtrak,...marc];
+  const [amtrak,marc,vre,metro]=await Promise.all([fetchAmtrak(),fetchMARC(),fetchVRE(),fetchWMATA()]);
+  allFetched={amtrak,marc,vre,metro};
+  const railAll=[...amtrak,...marc,...vre];
   if(railAll.length||metro.length){
     demo=false;
     const picked=pick(railAll,60);
-    opTrains={amtrak:[],marc:[],metro:metro.slice(0,MAX_PER_OP)};
+    opTrains={amtrak:[],marc:[],vre:[],metro:metro.slice(0,MAX_PER_OP)};
     picked.forEach(t=>{const k=t.system||'amtrak';if(opTrains[k])opTrains[k].push(t)});
-    for(const k of ['amtrak','marc'])opTrains[k]=opTrains[k].slice(0,MAX_PER_OP);
+    for(const k of ['amtrak','marc','vre'])opTrains[k]=opTrains[k].slice(0,MAX_PER_OP);
     // Clamp offsets if data shrunk
     for(const k of SECTIONS){if(opOff[k]>=opTrains[k].length)opOff[k]=0}
     updateBoard();
     if(amtrak.length)logTrains(amtrak);
-    console.log('[CRW]',opTrains.amtrak.length,'amtrak +',opTrains.marc.length,'marc +',opTrains.metro.length,'metro');
+    console.log('[CRW]',opTrains.amtrak.length,'amtrak +',opTrains.marc.length,'marc +',opTrains.vre.length,'vre +',opTrains.metro.length,'metro');
     return;
   }
   if(demo||!shown.length){
     demo=true;
-    opTrains={amtrak:DEMO.filter(t=>t.system==='amtrak'),marc:DEMO.filter(t=>t.system==='marc'),metro:[]};
+    opTrains={amtrak:DEMO.filter(t=>t.system==='amtrak'),marc:DEMO.filter(t=>t.system==='marc'),vre:[],metro:[]};
     updateBoard();
   }
 }
