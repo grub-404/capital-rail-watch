@@ -159,8 +159,6 @@ def get_origin_for_trip(trip_id):
     sched = schedules.get(trip_id, {})
     if not sched:
         return "BAL"  # Penn Line default
-    # Find stop with lowest sequence (earliest departure)
-    # Since we stored by stop_id, find the one with earliest time
     earliest_time = "99:99:99"
     earliest_stop = None
     for sid, (arr, dep) in sched.items():
@@ -169,6 +167,21 @@ def get_origin_for_trip(trip_id):
             earliest_time = t
             earliest_stop = sid
     return stops.get(earliest_stop, "BAL") if earliest_stop else "BAL"
+
+
+def get_destination_for_trip(trip_id):
+    """Find the last stop in a trip's schedule → that's the destination."""
+    sched = schedules.get(trip_id, {})
+    if not sched:
+        return "BAL"
+    latest_time = ""
+    latest_stop = None
+    for sid, (arr, dep) in sched.items():
+        t = arr if arr else dep
+        if t and t > latest_time:
+            latest_time = t
+            latest_stop = sid
+    return stops.get(latest_stop, "BAL") if latest_stop else "BAL"
 
 def hhmm_to_epoch(date_str, time_str):
     """Convert GTFS date (YYYYMMDD) + time (HH:MM:SS) to epoch seconds."""
@@ -248,7 +261,15 @@ def marc_trains():
         line_map = {PENN_ROUTE: "PENN", "11704": "BRUNSWICK", "11706": "CAMDEN"}
         line = line_map.get(route_id, "MARC")
 
-        origin = get_origin_for_trip(trip.trip_id)
+        trip_origin = get_origin_for_trip(trip.trip_id)
+        trip_dest = get_destination_for_trip(trip.trip_id)
+
+        if direction == "dep":
+            origin = "DC"
+            destination = trip_dest
+        else:
+            origin = trip_origin
+            destination = "DC"
 
         trains.append({
             "num": train_num,
@@ -258,7 +279,7 @@ def marc_trains():
             "actTime": epoch_to_iso(act_epoch),
             "delay": delay,
             "origin": origin,
-            "destination": "DC",
+            "destination": destination,
             "system": "marc",
             "platform": "",
             "status": "enroute"

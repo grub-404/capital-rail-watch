@@ -238,7 +238,8 @@ const CITY={
   'Roanoke':'RNK','Raleigh':'RGH',
   'New Orleans':'NOL','Tampa':'TPA','Jacksonville':'JAX','Orlando':'ORL',
   'Richmond Staples Mill':'RVR','Richmond':'RVR',
-  'Alexandria':'ALX','Trenton':'TRE','Perryville':'PVL',
+  'Alexandria':'ALX','Trenton':'TRE','Perryville':'PVL','Edgewood':'EDG',
+  'Halethorpe':'HLT','Odenton':'ODN','Seabrook':'SBK','New Carrollton':'NCR',
   'Newport News':'NPN','Harrisburg':'HBG','Niagara Falls':'NFA','Rutland':'RTD',
   'Montreal':'MTL','Toronto':'TOR','Pittsburgh':'PGH','Cleveland':'CLE',
   'Glenmont':'GLN','Shady Grv':'SHG','Shady Grove':'SHG',
@@ -295,7 +296,7 @@ function sRoute(n){return RSHORT[n]||n.toUpperCase().substring(0,8)}
 function sCity(n){if(!n)return'---';if(CITY[n])return CITY[n];for(const[k,v]of Object.entries(CITY)){if(n.toLowerCase().includes(k.toLowerCase()))return v}return n.toUpperCase().substring(0,3)}
 
 // Destinations reachable via north approach (NEC + B&P tunnel west)
-const NB_DEST=new Set(['NY','BOS','PHL','BAL','NWK','NHV','TRE','PVL','BWI','ABD','SPG','STB','HBG','NFA','CHI','CLE','PGH','MTL','TOR','RTD','GMT','RKV','BRN','FDK','GLN','SSP','WHT','FGL']);
+const NB_DEST=new Set(['NY','BOS','PHL','BAL','NWK','NHV','TRE','PVL','BWI','ABD','SPG','STB','HBG','NFA','CHI','CLE','PGH','MTL','TOR','RTD','GMT','RKV','BRN','FDK','GLN','SSP','WHT','FGL','EDG','HLT','ODN','SBK','NCR']);
 function isNorthbound(t){
   const d=sCity(t.destination);
   if(d==='DC')return false; // terminating at DC = arrived from somewhere
@@ -310,7 +311,7 @@ function pick(trains,n){
   const hMs=Math.min(43200000,Math.max(7200000,135000000/(trains.length+3)));
   const horizon=now+hMs;
   const s=trains.slice()
-    .filter(t=>{const tt=new Date(t.actTime||t.schTime||0).getTime();return tt>=now-900000&&tt<=horizon})
+    .filter(t=>{const tt=new Date(t.actTime||t.schTime||0).getTime();return tt>=now-120000&&tt<=horizon})
     .sort((a,b)=>new Date(a.actTime||a.schTime||0)-new Date(b.actTime||b.schTime||0));
   return s.slice(0,n);
 }
@@ -467,7 +468,20 @@ function blankRowData(){
   return out;
 }
 
-function noTrainsRowData(){
+function nextTrainHrs(key){
+  const trains=allFetched[key]||[];
+  if(!trains.length)return null;
+  const now=Date.now();
+  let earliest=Infinity;
+  trains.forEach(t=>{
+    const tt=new Date(t.actTime||t.schTime||0).getTime();
+    if(tt>now&&tt<earliest)earliest=tt;
+  });
+  if(earliest===Infinity)return null;
+  return Math.ceil((earliest-now)/3600000);
+}
+
+function noTrainsRowData(key){
   const out=[];
   function push(text,len,cls){
     text=String(text).toUpperCase();
@@ -475,10 +489,12 @@ function noTrainsRowData(){
     text=text.substring(0,len);
     for(let i=0;i<len;i++)out.push({ch:text[i],cls:cls||''});
   }
+  const hrs=nextTrainHrs(key);
+  const timeTxt=hrs!==null?(hrs<=1?'<1 HR':'~'+hrs+'HR'):'';
   push('',COL.ad,'');push('',COL.dir,'');push('',COL.sys,'');
   push(' NO',COL.num,'dim');push('TRAINS',COL.route,'dim');
   push('',COL.orig,'');push('',1,'');push('',COL.dest,'');
-  push('',COL.time,'');push('',COL.status,'');
+  push(timeTxt,COL.time,'dim');push('',COL.status,'');
   return out;
 }
 
@@ -506,7 +522,7 @@ function updateBoard(){
         data=rowData(page[r]);
         br.sysbar.className='sysbar '+(page[r].system||key);
       } else if(trains.length===0&&r===0){
-        data=noTrainsRowData();
+        data=noTrainsRowData(key);
         br.sysbar.className='sysbar '+key;
       } else {
         data=blankRowData();
@@ -624,6 +640,7 @@ async function fetchWeather(){
 
 // ─── Data ──────────────────────────────────
 let opTrains={amtrak:[],marc:[],metro:[]};
+let allFetched={amtrak:[],marc:[],metro:[]};
 let opOff={amtrak:0,marc:0,metro:0};
 
 async function fetchAmtrak(){
@@ -671,6 +688,7 @@ async function logTrains(trains){
 
 async function fetchTrains(){
   const [amtrak,marc,metro]=await Promise.all([fetchAmtrak(),fetchMARC(),fetchWMATA()]);
+  allFetched={amtrak,marc,metro};
   const railAll=[...amtrak,...marc];
   if(railAll.length||metro.length){
     demo=false;
@@ -678,7 +696,8 @@ async function fetchTrains(){
     opTrains={amtrak:[],marc:[],metro:metro.slice(0,MAX_PER_OP)};
     picked.forEach(t=>{const k=t.system||'amtrak';if(opTrains[k])opTrains[k].push(t)});
     for(const k of ['amtrak','marc'])opTrains[k]=opTrains[k].slice(0,MAX_PER_OP);
-    opOff={amtrak:0,marc:0,metro:0};
+    // Clamp offsets if data shrunk
+    for(const k of SECTIONS){if(opOff[k]>=opTrains[k].length)opOff[k]=0}
     updateBoard();
     if(amtrak.length)logTrains(amtrak);
     console.log('[CRW]',opTrains.amtrak.length,'amtrak +',opTrains.marc.length,'marc +',opTrains.metro.length,'metro');
@@ -687,7 +706,6 @@ async function fetchTrains(){
   if(demo||!shown.length){
     demo=true;
     opTrains={amtrak:DEMO.filter(t=>t.system==='amtrak'),marc:DEMO.filter(t=>t.system==='marc'),metro:[]};
-    opOff={amtrak:0,marc:0,metro:0};
     updateBoard();
   }
 }
@@ -797,6 +815,7 @@ updateClock();setInterval(updateClock,1000);
 fetchWeather();setInterval(fetchWeather,300000);
 updateWeather();
 fetchTrains().then(()=>{updateBoard();startCountdown()});
+setInterval(fetchTrains,POLL);
 setInterval(rotateTick,ROTATE_MS);
 </script>
 </body>
