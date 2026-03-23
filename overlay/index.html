@@ -213,14 +213,9 @@ html.night .secline{background:#2a2820}
 </div>
 
 <script>
-const API='https://api-v3.amtraker.com/v3/trains';
-const MARC_API='/api/marc';
-const VRE_API='/api/vre';
-const WMATA_API='/api/metro';
+const OVERLAY_TRAINS_API='/api/overlay-trains?horizonMinutes=720&pastSkewMinutes=2';
 const POLL=30000,ROTATE_MS=20000;
 const WEATHER_API='https://api.open-meteo.com/v1/forecast?latitude=38.899&longitude=-77.007&current=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m&daily=sunrise,sunset&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=America/New_York';
-
-const NORTH=['acela','ne regional','northeast regional','vermonter','capitol limited','lake shore limited','cardinal','carolinian','palmetto','silver star','silver meteor','marc penn','marc - penn'];
 
 const DEMO=[
   {num:'2253',route:'Acela',direction:'arr',schTime:'2026-03-21T14:30:00-04:00',actTime:'2026-03-21T14:38:00-04:00',delay:8,platform:'7',origin:'New York Penn',destination:'Washington Union',system:'amtrak'},
@@ -262,31 +257,6 @@ const SYS_LABEL={amtrak:'AMTK',marc:'MARC',vre:'VRE',metro:'WMTA'};
 
 let shown=[],actx=null,aon=false,demo=true;
 
-function cDelay(s,a){if(!s||!a)return 0;const sv=new Date(s).getTime(),av=new Date(a).getTime();return(isNaN(sv)||isNaN(av))?0:Math.round((av-sv)/60000)}
-
-function parse(api){
-  if(!api||typeof api!=='object'||Array.isArray(api))return[];
-  const out=[],seen=new Set();
-  for(const k of Object.keys(api)){
-    const ar=api[k];if(!Array.isArray(ar))continue;
-    for(const t of ar){
-      if(!t.trainNum)continue;
-      const ss=t.stations||[],w=ss.find(s=>(s.code||'').toUpperCase()==='WAS');
-      if(!w)continue;
-      const oc=(t.origCode||'').toUpperCase(),dc=(t.destCode||'').toUpperCase(),st=(w.status||'').toLowerCase();
-      let dir;
-      if(dc==='WAS')dir='arr';else if(oc==='WAS')dir='dep';
-      else if(st==='enroute'||st==='')dir='arr';else dir='dep';
-      const dk=t.trainNum+'-'+dir;if(seen.has(dk))continue;seen.add(dk);
-      const sch=dir==='arr'?w.schArr:w.schDep;
-      const act=dir==='arr'?(w.arr||''):(w.dep||'');
-      out.push({num:String(t.trainNum),route:t.routeName||'',direction:dir,schTime:sch||'',actTime:act,delay:cDelay(dir==='arr'?w.schArr:w.schDep,dir==='arr'?w.arr:w.dep),platform:w.platform||'',origin:t.origName||'',destination:t.destName||'',system:'amtrak',status:st});
-    }
-  }
-  return out;
-}
-
-function filterN(t){return t.filter(x=>{const r=x.route.toLowerCase();return NORTH.some(n=>r.includes(n))})}
 function stTxt(d){if(d===0)return{t:'ON TIME',c:'green'};if(d>0)return{t:'+'+d+'M',c:'red'};return{t:d+'M',c:'green'}}
 function fTime(s){if(!s)return'--:--';const d=new Date(s);if(isNaN(d))return'--:--';let h=d.getHours();const m=String(d.getMinutes()).padStart(2,'0'),ap=h>=12?'P':'A';h=h%12||12;return h+':'+m+ap}
 
@@ -650,81 +620,29 @@ let opTrains={amtrak:[],marc:[],vre:[],metro:[]};
 let allFetched={amtrak:[],marc:[],vre:[],metro:[]};
 let opOff={amtrak:0,marc:0,vre:0,metro:0};
 
-async function fetchAmtrak(){
-  try{
-    const r=await fetch(API);if(!r.ok)throw new Error(r.status);
-    return filterN(parse(await r.json()));
-  }catch(e){console.warn('[CRW] amtrak err:',e.message);return[]}
-}
-
-async function fetchMARC(){
-  try{
-    const r=await fetch(MARC_API);if(!r.ok)throw new Error(r.status);
-    const j=await r.json();
-    return(j.trains||[]).filter(t=>t.route.toUpperCase().includes('PENN'));
-  }catch(e){console.warn('[CRW] marc err:',e.message);return[]}
-}
-
-async function fetchVRE(){
-  try{
-    const r=await fetch(VRE_API);if(!r.ok)throw new Error(r.status);
-    const j=await r.json();
-    return j.trains||[];
-  }catch(e){console.warn('[CRW] vre err:',e.message);return[]}
-}
-
-const METRO_LINES_BY_CODE={
-  RD:{abbr:'RED',cls:'metro-rd'},BL:{abbr:'BLUE',cls:'metro-bl'},OR:{abbr:'ORANGE',cls:'metro-or'},
-  SV:{abbr:'SILVER',cls:'metro-sv'},GR:{abbr:'GREEN',cls:'metro-gr'},YL:{abbr:'YELLOW',cls:'metro-yl'}
-};
-async function fetchWMATA(){
-  try{
-    const r=await fetch(WMATA_API);
-    if(!r.ok)throw new Error(r.status);
-    const j=await r.json();
-    const now=Date.now();
-    return(j.Trains||[]).filter(t=>t.Line&&t.Min!=='---'&&t.Min!=='').map((t,i)=>{
-      const mins=t.Min==='BRD'?0:t.Min==='ARR'?0:parseInt(t.Min)||0;
-      const eta=new Date(now+mins*60000).toISOString();
-      const code=String(t.Line||'').toUpperCase().trim();
-      const L=METRO_LINES_BY_CODE[code];
-      const route=L?`${L.abbr} LINE`:`${code} LINE`;
-      // BRD/ARR get special status override; otherwise shows "ON TIME" via delay=0
-      const _status=t.Min==='BRD'?{t:'BOARDNG',c:'green'}:t.Min==='ARR'?{t:'ARRIVE',c:'green'}:null;
-      const obj={
-        num:t.Car+'C',route:route,direction:'arr',
-        schTime:eta,actTime:eta,delay:0,platform:t.Group,
-        origin:'NoMa-Gallaudet U',destination:t.DestinationName||t.Destination,
-        system:'metro',metroRouteCls:L?L.cls:''
-      };
-      if(_status)obj._status=_status;
-      return obj;
-    });
-  }catch(e){console.warn('[CRW] wmata err:',e.message);return[]}
-}
-
-async function logTrains(trains){
-  try{await fetch('/api/log',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(trains)})}
-  catch(e){console.warn('[CRW] log err:',e.message)}
-}
-
 async function fetchTrains(){
-  const [amtrak,marc,vre,metro]=await Promise.all([fetchAmtrak(),fetchMARC(),fetchVRE(),fetchWMATA()]);
-  allFetched={amtrak,marc,vre,metro};
-  const railAll=[...amtrak,...marc,...vre];
-  if(railAll.length||metro.length){
-    demo=false;
-    const picked=pick(railAll,60);
-    opTrains={amtrak:[],marc:[],vre:[],metro:metro.slice(0,MAX_PER_OP)};
-    picked.forEach(t=>{const k=t.system||'amtrak';if(opTrains[k])opTrains[k].push(t)});
-    for(const k of ['amtrak','marc','vre'])opTrains[k]=opTrains[k].slice(0,MAX_PER_OP);
-    // Clamp offsets if data shrunk
-    for(const k of SECTIONS){if(opOff[k]>=opTrains[k].length)opOff[k]=0}
-    updateBoard();
-    if(amtrak.length)logTrains(amtrak);
-    console.log('[CRW]',opTrains.amtrak.length,'amtrak +',opTrains.marc.length,'marc +',opTrains.vre.length,'vre +',opTrains.metro.length,'metro');
-    return;
-  }
+  try{
+    const r=await fetch(OVERLAY_TRAINS_API,{cache:'no-store'});
+    if(!r.ok)throw new Error(String(r.status));
+    const j=await r.json();
+    const amtrak=j.amtrak||[];
+    const marc=j.marc||[];
+    const vre=j.vre||[];
+    const metro=j.metro||[];
+    allFetched={amtrak,marc,vre,metro};
+    const railAll=[...amtrak,...marc,...vre];
+    if(railAll.length||metro.length){
+      demo=false;
+      const picked=pick(railAll,60);
+      opTrains={amtrak:[],marc:[],vre:[],metro:metro.slice(0,MAX_PER_OP)};
+      picked.forEach(t=>{const k=t.system||'amtrak';if(opTrains[k])opTrains[k].push(t)});
+      for(const k of ['amtrak','marc','vre'])opTrains[k]=opTrains[k].slice(0,MAX_PER_OP);
+      for(const k of SECTIONS){if(opOff[k]>=opTrains[k].length)opOff[k]=0}
+      updateBoard();
+      console.log('[CRW]',opTrains.amtrak.length,'amtrak +',opTrains.marc.length,'marc +',opTrains.vre.length,'vre +',opTrains.metro.length,'metro (sqlite)');
+      return;
+    }
+  }catch(e){console.warn('[CRW] overlay-trains err:',e.message)}
   if(demo||!shown.length){
     demo=true;
     opTrains={amtrak:DEMO.filter(t=>t.system==='amtrak'),marc:DEMO.filter(t=>t.system==='marc'),vre:[],metro:[]};

@@ -52,12 +52,17 @@ With the venv activated, from the repo root:
 python backend/server.py
 ```
 
+Use this entrypoint so the **background ingest thread** starts. (`flask run` alone will not start ingest unless you wire it up yourself.)
+
 The server starts on `http://localhost:5555`. You should see:
 
 ```
 [CRW] SQLite DB ready at ...
+[CRW] Background ingest every 30s
 [CRW] Starting on port 5555
 ```
+
+The server runs a **background ingest loop** (every 30 seconds by default, configurable with `INGEST_INTERVAL_SEC` in `.env`) that fetches Amtrak, MARC, VRE, and Metro, then writes rows into **`db/trains.db`**. The Solari board and ticker **only read** that data through **`GET /api/overlay-trains`** and **`GET /api/ticker-cache`** — they no longer call Amtraker or feed URLs from the browser.
 
 ### 5. Add to OBS
 
@@ -70,11 +75,11 @@ The server starts on `http://localhost:5555`. You should see:
 
 ```
 backend/
-  server.py          # Flask API — proxies MARC GTFS-RT, serves overlay
+  server.py          # Flask API — ingests feeds into SQLite, serves overlay JSON + static files
   requirements.txt   # Python dependencies
 overlay/
   index.html         # Solari board overlay (HTML/CSS/JS)
-  ticker.html        # Scrolling ticker (same data sources as index: Amtraker + /api/marc + /api/metro)
+  ticker.html        # Scrolling ticker (reads `/api/ticker-cache` → SQLite)
   ticker-facts.json  # “Did you know?” lines for the ticker (easy to edit; see TICKER-FACTS-README.txt)
   *.svg              # Logos for the ticker (Amtrak, MARC)
 db/
@@ -86,14 +91,16 @@ db/
 | Endpoint | Description |
 |---|---|
 | `GET /` | Serves the overlay |
-| `GET /ticker.html` | Union Station scrolling ticker (loads Amtraker in-browser + `/api/marc` + `/api/metro`) |
-| `GET /api/marc` | Live MARC train data (from GTFS-RT) |
-| `GET /api/vre` | VRE trains at Union Station (GTFS static + GTFS-RT) |
-| `GET /api/metro` | WMATA Metro predictions (proxied, requires `WMATA_KEY`) |
+| `GET /ticker.html` | Union Station scrolling ticker (reads SQLite via `/api/ticker-cache`) |
+| `GET /api/overlay-trains` | Solari board: trains from SQLite in a time window, split by `amtrak` / `marc` / `vre` / `metro` |
+| `GET /api/marc` | Live MARC JSON (still fetches GTFS-RT; also logged to SQLite by background ingest) |
+| `GET /api/vre` | Live VRE JSON (same pattern) |
+| `GET /api/metro` | WMATA predictions JSON (proxied; requires `WMATA_KEY`) |
 | `GET /api/stats` | Today's train count and delay stats |
 | `GET /api/health` | Health check |
 | `GET /api/ticker-config` | Ticker settings from `.env` (`TICKER_*`, optional) |
-| `POST /api/log` | Log external train data (e.g. Amtrak) |
+| `GET /api/ticker-cache` | Ticker: trains from SQLite in the configured time window |
+| `POST /api/log` | Log external train rows (optional; ingest covers Amtrak server-side) |
 
 ## Troubleshooting
 
@@ -101,3 +108,5 @@ db/
 - **`pip` not found (Windows)**: Use `python -m pip install -r backend/requirements.txt`
 - **Port in use**: Add `PORT=8080` to `.env`, or run `PORT=8080 python backend/server.py` (Mac) / `set PORT=8080 && python backend/server.py` (Windows cmd)
 - **GTFS download slow on first run**: The server downloads MARC schedule data (~2 MB) on the first API call. This is cached in memory for the session.
+
+- **Board or ticker empty**: Both UIs read **`db/trains.db`** only. If ingest has not run yet, or every provider failed, or all stored event times fall outside the window, lists stay empty. Check server logs for ingest errors, confirm **`INGEST_INTERVAL_SEC`** is set, and that **`WMATA_KEY`** is set if you expect Metro. The first **`python backend/server.py`** run performs an immediate ingest, then repeats on the interval.

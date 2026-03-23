@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS trains (
     actual_time TEXT,
     delay_minutes INTEGER DEFAULT 0,
     track TEXT,
+    status_flags TEXT,
     origin TEXT,
     destination TEXT,
     first_seen_at TEXT DEFAULT (datetime('now')),

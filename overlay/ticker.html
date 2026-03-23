@@ -365,27 +365,6 @@ async function loadTickerConfig() {
   } catch (_) {}
 }
 
-/* Same sources as overlay/index.html */
-const AMTRAK_API = "https://api-v3.amtraker.com/v3/trains";
-const MARC_API   = "/api/marc";
-const VRE_API    = "/api/vre";
-const WMATA_API  = "/api/metro";
-
-const METRO_LINES_BY_CODE = {
-  RD: { abbr: "RED", cls: "metro-rd" },
-  BL: { abbr: "BLUE", cls: "metro-bl" },
-  OR: { abbr: "ORANGE", cls: "metro-or" },
-  SV: { abbr: "SILVER", cls: "metro-sv" },
-  GR: { abbr: "GREEN", cls: "metro-gr" },
-  YL: { abbr: "YELLOW", cls: "metro-yl" },
-};
-
-const NORTH = [
-  "acela", "ne regional", "northeast regional", "vermonter", "capitol limited",
-  "lake shore limited", "cardinal", "carolinian", "palmetto", "silver star",
-  "silver meteor", "marc penn", "marc - penn",
-];
-
 /* ── state ──────────────────────────────────────────────────── */
 let departures = [];
 let arrivals   = [];
@@ -403,138 +382,6 @@ const wrap      = document.getElementById("ticker-track-wrap");
 /* ── helpers ────────────────────────────────────────────────── */
 const sleep     = ms => new Promise(r => setTimeout(r, ms));
 const nextFrame = ()  => new Promise(r => requestAnimationFrame(r));
-
-function cDelay(s, a) {
-  if (!s || !a) return 0;
-  const sv = new Date(s).getTime();
-  const av = new Date(a).getTime();
-  return (isNaN(sv) || isNaN(av)) ? 0 : Math.round((av - sv) / 60000);
-}
-
-function parseAmtrak(api) {
-  if (!api || typeof api !== "object" || Array.isArray(api)) return [];
-  const out = [];
-  const seen = new Set();
-  for (const k of Object.keys(api)) {
-    const ar = api[k];
-    if (!Array.isArray(ar)) continue;
-    for (const t of ar) {
-      if (!t.trainNum) continue;
-      const ss = t.stations || [];
-      const w = ss.find(s => (s.code || "").toUpperCase() === "WAS");
-      if (!w) continue;
-      const oc = (t.origCode || "").toUpperCase();
-      const dc = (t.destCode || "").toUpperCase();
-      const st = (w.status || "").toLowerCase();
-      let dir;
-      if (dc === "WAS") dir = "arr";
-      else if (oc === "WAS") dir = "dep";
-      else if (st === "enroute" || st === "") dir = "arr";
-      else dir = "dep";
-      const dk = t.trainNum + "-" + dir;
-      if (seen.has(dk)) continue;
-      seen.add(dk);
-      const sch = dir === "arr" ? w.schArr : w.schDep;
-      const act = dir === "arr" ? (w.arr || "") : (w.dep || "");
-      out.push({
-        num: String(t.trainNum),
-        route: t.routeName || "",
-        direction: dir,
-        schTime: sch || "",
-        actTime: act,
-        delay: cDelay(dir === "arr" ? w.schArr : w.schDep, dir === "arr" ? w.arr : w.dep),
-        platform: w.platform || "",
-        origin: t.origName || "",
-        destination: t.destName || "",
-        system: "amtrak",
-        status: st,
-      });
-    }
-  }
-  return out;
-}
-
-function filterNorth(trains) {
-  return trains.filter(x => {
-    const r = x.route.toLowerCase();
-    return NORTH.some(n => r.includes(n));
-  });
-}
-
-async function fetchAmtrak() {
-  try {
-    const r = await fetch(AMTRAK_API);
-    if (!r.ok) throw new Error(r.status);
-    return filterNorth(parseAmtrak(await r.json()));
-  } catch (_) {
-    return [];
-  }
-}
-
-async function fetchMARC() {
-  try {
-    const r = await fetch(MARC_API);
-    if (!r.ok) throw new Error(r.status);
-    const j = await r.json();
-    return (j.trains || []).filter(t => t.route.toUpperCase().includes("PENN"));
-  } catch (_) {
-    return [];
-  }
-}
-
-async function fetchVRE() {
-  try {
-    const r = await fetch(VRE_API);
-    if (!r.ok) throw new Error(r.status);
-    const j = await r.json();
-    return j.trains || [];
-  } catch (_) {
-    return [];
-  }
-}
-
-async function fetchWMATA() {
-  try {
-    const r = await fetch(WMATA_API);
-    if (!r.ok) throw new Error(r.status);
-    const j = await r.json();
-    const now = Date.now();
-    return (j.Trains || [])
-      .filter(t => t.Line && t.Min !== "---" && t.Min !== "")
-      .map(t => {
-        const mins = t.Min === "BRD" ? 0 : t.Min === "ARR" ? 0 : parseInt(t.Min, 10) || 0;
-        const eta = new Date(now + mins * 60000).toISOString();
-        const code = String(t.Line || "").toUpperCase().trim();
-        const L = METRO_LINES_BY_CODE[code];
-        const route = L ? `${L.abbr} LINE` : `${code} LINE`;
-        return {
-          num: t.Car + "C",
-          route,
-          metroRouteCls: L ? L.cls : "",
-          direction: "arr",
-          schTime: eta,
-          actTime: eta,
-          delay: 0,
-          platform: t.Group,
-          origin: "NoMa-Gallaudet U",
-          destination: t.DestinationName || t.Destination,
-          system: "metro",
-        };
-      });
-  } catch (_) {
-    return [];
-  }
-}
-
-async function logTrains(trains) {
-  try {
-    await fetch("/api/log", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(trains),
-    });
-  } catch (_) {}
-}
 
 function toTickerEvent(t) {
   const when = t.actTime || t.schTime || "";
@@ -559,30 +406,34 @@ function toTickerEvent(t) {
   };
 }
 
+/** Keep rows whose event time falls in [now - skew, now + window] (UTC via Date). */
+function filterTrainsInTickerWindow(trainList) {
+  const now = Date.now();
+  const end = now + WINDOW_MINS * 60 * 1000;
+  const pastSkew = 5 * 60 * 1000;
+  return trainList
+    .filter((t) => {
+      const tt = new Date(t.actTime || t.schTime || 0).getTime();
+      return !Number.isNaN(tt) && tt >= now - pastSkew && tt <= end;
+    })
+    .sort(
+      (a, b) =>
+        new Date(a.actTime || a.schTime || 0) -
+        new Date(b.actTime || b.schTime || 0)
+    );
+}
+
 async function fetchData() {
   await loadTickerFacts();
   try {
-    const [amtrak, marc, vre, metro] = await Promise.all([
-      fetchAmtrak(),
-      fetchMARC(),
-      fetchVRE(),
-      fetchWMATA(),
-    ]);
-    if (amtrak.length) logTrains(amtrak);
-
-    const all = [...amtrak, ...marc, ...vre, ...metro];
-    const now = Date.now();
-    const end = now + WINDOW_MINS * 60 * 1000;
-    const filtered = all
-      .filter(t => {
-        const tt = new Date(t.actTime || t.schTime || 0).getTime();
-        return tt >= now - 120000 && tt <= end;
-      })
-      .sort(
-        (a, b) =>
-          new Date(a.actTime || a.schTime || 0) -
-          new Date(b.actTime || b.schTime || 0)
-      );
+    const cr = await fetch(
+      `/api/ticker-cache?windowMinutes=${WINDOW_MINS}&pastSkewMinutes=5`,
+      { cache: "no-store" }
+    );
+    if (!cr.ok) return;
+    const cj = await cr.json();
+    const all = cj.trains || [];
+    const filtered = filterTrainsInTickerWindow(all);
 
     const railOnly = filtered.filter(t => t.system !== "metro");
     departures = railOnly.filter(t => t.direction === "dep").map(toTickerEvent);
