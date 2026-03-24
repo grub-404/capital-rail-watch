@@ -1,0 +1,680 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Union Station Ticker</title>
+  <style>
+    /* Aligned with overlay/index.html Solari board tokens */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --flap: #1a1a18;
+      --flaphi: #222220;
+      --flaplo: #161614;
+      --housing: #2a2a28;
+      --frame: #363632;
+      --framelt: #42423e;
+      --framedk: #262624;
+      --txt: #eeece0;
+      --txtdim: #aaa898;
+      --amber: #e8b820;
+      --green: #38b838;
+      --red: #d83838;
+      --amtrak: #4a90c8;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      overflow: hidden;
+      font-family: Helvetica, Arial, sans-serif;
+    }
+
+    #ticker,
+    #ticker-label,
+    #ticker-track-wrap,
+    .tick-item,
+    .tick-sep {
+      transition: background 3s ease, border-color 3s ease, color 3s ease, box-shadow 3s ease;
+    }
+
+    /* ── Bar housing (matches #board frame) ─────────────────── */
+    #ticker {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      min-height: 52px;
+      display: flex;
+      align-items: stretch;
+      overflow: hidden;
+      background: var(--housing);
+      border: 4px solid var(--frame);
+      border-top-color: var(--framelt);
+      border-left-color: var(--framelt);
+      border-bottom-color: var(--framedk);
+      border-right-color: var(--framedk);
+      box-shadow: 2px 3px 12px rgba(0, 0, 0, 0.7), 0 0 1px rgba(0, 0, 0, 0.9);
+    }
+
+    /* ── Section label strip (hdr + sysbar accent) ─────────────── */
+    #ticker-label {
+      flex-shrink: 0;
+      min-width: 128px;
+      max-width: 200px;
+      overflow: hidden;
+      position: relative;
+      background: linear-gradient(180deg, #242422, #1e1e1c);
+      border-right: 1px solid #1a1a18;
+      border-left: 4px solid var(--txtdim);
+    }
+
+    #ticker-label.mode-departures { border-left-color: var(--amber); }
+    #ticker-label.mode-arrivals   { border-left-color: var(--green); }
+    #ticker-label.mode-metro      { border-left-color: #a0a0a0; }
+    #ticker-label.mode-funfact    { border-left-color: var(--amtrak); }
+
+    #label-inner {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      padding: 8px 12px;
+    }
+
+    #label-text {
+      font: bold 9px/1.2 Helvetica, Arial, sans-serif;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      text-align: center;
+      color: var(--txtdim);
+      white-space: normal;
+    }
+
+    #ticker-label.mode-departures #label-text { color: var(--amber); }
+    #ticker-label.mode-arrivals   #label-text { color: var(--green); }
+    #ticker-label.mode-metro      #label-text { color: #c8c8c8; }
+    #ticker-label.mode-funfact    #label-text { color: var(--amtrak); }
+
+    /* ── Track (dark content well, same feel as #trns) ───────── */
+    #ticker-track-wrap {
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+      background: #101010;
+      box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.6);
+    }
+
+    #ticker-track-wrap::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 80% 70% at 50% 40%, rgba(255, 255, 240, 0.02), transparent 70%);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    #ticker-track {
+      display: flex;
+      align-items: center;
+      height: 100%;
+      min-height: 44px;
+      position: absolute;
+      left: 0;
+      top: 0;
+      white-space: nowrap;
+      will-change: transform;
+      z-index: 2;
+      padding: 4px 8px;
+      gap: 6px;
+    }
+
+    /* ── Event chips (flat — no split-flap mimic) ─────────────── */
+    .tick-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 16px;
+      min-height: 36px;
+      color: var(--txt);
+      font: bold 13px/1.2 Helvetica, Arial, sans-serif;
+      letter-spacing: 0.02em;
+      background: rgba(38, 38, 36, 0.92);
+      border: 1px solid #333330;
+    }
+
+    .tick-item.tick-empty {
+      color: var(--txtdim);
+      font-size: 11px;
+      font-weight: bold;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .tick-item.tick-item-fact {
+      font-weight: bold;
+      font-size: 12px;
+      letter-spacing: 0.03em;
+      max-width: min(92vw, 960px);
+      white-space: normal;
+      flex-shrink: 1;
+    }
+
+    .tick-item-fact .fact-body {
+      display: block;
+      max-width: 100%;
+      white-space: normal;
+    }
+
+    .tick-item .logo {
+      height: 22px;
+      width: auto;
+      display: block;
+      filter: brightness(0) invert(1) opacity(0.92);
+      flex-shrink: 0;
+    }
+
+    .tick-item .logo-marc { height: 16px; }
+
+    .tick-item .logo-vre {
+      filter: none;
+      height: 20px;
+      opacity: 0.95;
+    }
+
+    .tick-item .time {
+      color: var(--amber);
+      font-variant-numeric: tabular-nums;
+      font: bold 14px/1 Helvetica, Arial, sans-serif;
+    }
+
+    .tick-item .delay {
+      font: bold 10px/1 Helvetica, Arial, sans-serif;
+      padding: 4px 6px;
+      letter-spacing: 0.5px;
+      border: 1px solid transparent;
+    }
+
+    .tick-item .delay.late {
+      color: var(--red);
+      background: #1a1010;
+      border-color: #402020;
+    }
+
+    .tick-item .delay.early {
+      color: var(--green);
+      background: #101810;
+      border-color: #243024;
+    }
+
+    .tick-item .delay.on {
+      color: var(--txtdim);
+      background: var(--flaplo);
+      border-color: #2a2a28;
+    }
+
+    .tick-item .headsign {
+      color: var(--txtdim);
+      font: bold 11px/1.2 Helvetica, Arial, sans-serif;
+    }
+
+    /* WMATA line colors (match index / map signage) */
+    .tick-item .route-line.metro-rd { color: #C8102E; }
+    .tick-item .route-line.metro-bl { color: #0096D6; }
+    .tick-item .route-line.metro-or { color: #F7931E; }
+    .tick-item .route-line.metro-sv { color: #9EA2A2; }
+    .tick-item .route-line.metro-gr { color: #00B140; }
+    .tick-item .route-line.metro-yl { color: #FFD200; }
+
+    .tick-item .fact-star {
+      font-size: 16px;
+      color: var(--amber);
+      flex-shrink: 0;
+    }
+
+    .tick-sep {
+      display: inline-flex;
+      align-items: center;
+      align-self: center;
+      padding: 0 4px;
+      color: #333330;
+      font: bold 14px/1 Helvetica, Arial, sans-serif;
+    }
+
+    /* ── Night mode (matches board fallback: 7pm–6am) ─────────── */
+    html.night {
+      --flap: #12100c;
+      --flaphi: #181510;
+      --flaplo: #0e0c08;
+      --housing: #1c1a14;
+      --frame: #2a2820;
+      --framelt: #343228;
+      --framedk: #1e1c16;
+      --txt: #e8a830;
+      --txtdim: #9a7020;
+      --amber: #f0d050;
+      --green: #40b840;
+      --red: #d04040;
+      --amtrak: #3878a8;
+    }
+
+    html.night #ticker {
+      box-shadow: 2px 3px 16px rgba(0, 0, 0, 0.8), 0 0 40px rgba(200, 140, 20, 0.06);
+    }
+
+    html.night #ticker-label {
+      background: linear-gradient(180deg, #1a1810, #161410);
+    }
+
+    html.night #ticker-track-wrap {
+      background: #0c0a08;
+    }
+
+    html.night .tick-item {
+      background: rgba(30, 28, 22, 0.92);
+      border-color: #2a2820;
+    }
+  </style>
+</head>
+<body>
+
+<div id="ticker">
+  <div id="ticker-label" class="mode-departures">
+    <div id="label-inner">
+      <span id="label-text"></span>
+    </div>
+  </div>
+  <div id="ticker-track-wrap">
+    <div id="ticker-track"></div>
+  </div>
+</div>
+
+<script>
+/* ── constants ──────────────────────────────────────────────── */
+const LOGO = {
+  Amtrak: { src: "/amtrak.svg",     cls: "logo" },
+  MARC:   { src: "/MARC_train.svg", cls: "logo logo-marc" },
+  VRE:    { src: "/vre.svg",        cls: "logo logo-vre" },
+};
+
+const LABEL_MODES = {
+  departures: { text: "Departures" },
+  arrivals:   { text: "Arrivals" },
+  metro:      { text: "Metro" },
+  funfact:    { text: "Did You Know?" },
+};
+
+const LABEL_MODE_CLASSES = ["mode-departures", "mode-arrivals", "mode-metro", "mode-funfact"];
+
+const RUNS = ["departures", "arrivals", "metro", "funfact"];
+
+/* Built-in fallback if overlay/ticker-facts.json is missing or invalid */
+const DEFAULT_TICKER_FACTS = [
+  "Washington Union Station opened in 1907 and was the largest train station in the world at the time.",
+  "During World War II, Union Station handled over 200,000 passengers per day at its wartime peak.",
+  "The station's main hall ceiling soars 96 feet high, modeled after the ancient Baths of Diocletian in Rome.",
+  "After decades of decline, Union Station was fully restored in a $160 million renovation completed in 1988.",
+  "VRE was founded in 1992 and today carries around 19,000 daily commuters between Northern Virginia and DC.",
+  "MARC Train covers 178 route miles across three lines — Penn, Camden, and Brunswick.",
+  "Amtrak's Acela, which stops here, is the fastest train in the Americas, reaching up to 150 mph.",
+  "Union Station is the second busiest rail station in the US, with over 5 million Amtrak passengers per year.",
+];
+
+let tickerFacts = DEFAULT_TICKER_FACTS.slice();
+
+async function loadTickerFacts() {
+  try {
+    const r = await fetch("/ticker-facts.json", { cache: "no-store" });
+    if (!r.ok) return;
+    const data = await r.json();
+    let list = [];
+    if (Array.isArray(data)) list = data;
+    else if (data && Array.isArray(data.facts)) list = data.facts;
+    list = list
+      .filter((x) => typeof x === "string" && x.trim().length > 0)
+      .map((x) => x.trim());
+    if (list.length) tickerFacts = list;
+  } catch (_) {}
+  if (!tickerFacts.length) tickerFacts = DEFAULT_TICKER_FACTS.slice();
+}
+
+/* Defaults; overridden by GET /api/ticker-config from .env (TICKER_*). */
+let SPEED_PX_S    = 80;
+let START_DWELL   = 2200;
+let END_DWELL     = 900;
+let FACT_DWELL    = 7000;
+let LABEL_ANIM    = 360;
+let REFRESH_MS    = 60_000;
+let WINDOW_MINS   = 60;
+
+async function loadTickerConfig() {
+  try {
+    const r = await fetch("/api/ticker-config");
+    if (!r.ok) return;
+    const c = await r.json();
+    if (typeof c.windowMinutes === "number") WINDOW_MINS = c.windowMinutes;
+    if (typeof c.speedPxS === "number") SPEED_PX_S = c.speedPxS;
+    if (typeof c.startDwellMs === "number") START_DWELL = c.startDwellMs;
+    if (typeof c.endDwellMs === "number") END_DWELL = c.endDwellMs;
+    if (typeof c.factDwellMs === "number") FACT_DWELL = c.factDwellMs;
+    if (typeof c.labelAnimMs === "number") LABEL_ANIM = c.labelAnimMs;
+    if (typeof c.refreshMs === "number") REFRESH_MS = c.refreshMs;
+  } catch (_) {}
+}
+
+/* ── state ──────────────────────────────────────────────────── */
+let departures = [];
+let arrivals   = [];
+let metroEvents = [];
+let runIndex   = 0;
+let factIndex  = 0;
+
+/* ── DOM refs ───────────────────────────────────────────────── */
+const labelEl   = document.getElementById("ticker-label");
+const labelInner= document.getElementById("label-inner");
+const labelText = document.getElementById("label-text");
+const track     = document.getElementById("ticker-track");
+const wrap      = document.getElementById("ticker-track-wrap");
+
+/* ── helpers ────────────────────────────────────────────────── */
+const sleep     = ms => new Promise(r => setTimeout(r, ms));
+const nextFrame = ()  => new Promise(r => requestAnimationFrame(r));
+
+function toTickerEvent(t) {
+  const when = t.actTime || t.schTime || "";
+  const provider =
+    t.system === "marc"
+      ? "MARC"
+      : t.system === "metro"
+        ? "Metro"
+        : t.system === "vre"
+          ? "VRE"
+          : "Amtrak";
+  const headsign = [t.origin, t.destination].filter(Boolean).join(" → ");
+  return {
+    provider,
+    trainId: t.num,
+    route: t.route,
+    metroRouteCls: t.metroRouteCls || "",
+    headsign,
+    eventType: t.direction === "arr" ? "arrival" : "departure",
+    estimatedTime: when,
+    delayMinutes: t.delay ?? 0,
+  };
+}
+
+/** Keep rows whose event time falls in [now - skew, now + window] (UTC via Date). */
+function filterTrainsInTickerWindow(trainList) {
+  const now = Date.now();
+  const end = now + WINDOW_MINS * 60 * 1000;
+  const pastSkew = 5 * 60 * 1000;
+  return trainList
+    .filter((t) => {
+      const tt = new Date(t.actTime || t.schTime || 0).getTime();
+      return !Number.isNaN(tt) && tt >= now - pastSkew && tt <= end;
+    })
+    .sort(
+      (a, b) =>
+        new Date(a.actTime || a.schTime || 0) -
+        new Date(b.actTime || b.schTime || 0)
+    );
+}
+
+async function fetchData() {
+  await loadTickerFacts();
+  try {
+    const cr = await fetch(
+      `/api/ticker-cache?windowMinutes=${WINDOW_MINS}&pastSkewMinutes=5`,
+      { cache: "no-store" }
+    );
+    if (!cr.ok) return;
+    const cj = await cr.json();
+    const all = cj.trains || [];
+    const filtered = filterTrainsInTickerWindow(all);
+
+    const railOnly = filtered.filter(t => t.system !== "metro");
+    departures = railOnly.filter(t => t.direction === "dep").map(toTickerEvent);
+    arrivals = railOnly.filter(t => t.direction === "arr").map(toTickerEvent);
+    metroEvents = filtered.filter(t => t.system === "metro").map(toTickerEvent);
+  } catch (_) {}
+}
+
+function tickerEventsForRun(runType) {
+  if (runType === "departures") return departures;
+  if (runType === "arrivals") return arrivals;
+  if (runType === "metro") return metroEvents;
+  return [];
+}
+
+function emptyMessageType(runType) {
+  if (runType === "metro") return "Metro trains";
+  return runType;
+}
+
+/* ── label animation ────────────────────────────────────────── */
+function applyLabelConfig(key) {
+  const cfg = LABEL_MODES[key];
+  LABEL_MODE_CLASSES.forEach((c) => labelEl.classList.remove(c));
+  labelEl.classList.add("mode-" + key);
+  labelText.textContent = cfg.text;
+}
+
+function setLabelY(pct) {
+  labelInner.style.transition = "none";
+  labelInner.style.transform  = `translateY(${pct}%)`;
+  labelInner.offsetHeight; // force reflow
+}
+
+function animateLabelTo(pct) {
+  return new Promise(resolve => {
+    labelInner.style.transition = `transform ${LABEL_ANIM}ms cubic-bezier(0.4,0,0.2,1)`;
+    labelInner.style.transform  = `translateY(${pct}%)`;
+    setTimeout(resolve, LABEL_ANIM);
+  });
+}
+
+async function swapLabel(nextKey) {
+  await animateLabelTo(100);   // slide current label down and out
+  applyLabelConfig(nextKey);
+  setLabelY(-100);             // reposition above, invisible
+  await animateLabelTo(0);     // slide new label down into view
+}
+
+/* ── track content builders ─────────────────────────────────── */
+function buildEventContent(events, type, showLogos = true) {
+  track.innerHTML = "";
+
+  if (!events.length) {
+    const empty = document.createElement("span");
+    empty.className = "tick-item tick-empty";
+    empty.textContent = `No ${type} in the next hour`;
+    track.appendChild(empty);
+    return;
+  }
+
+  events.forEach((ev, i) => {
+    if (i > 0) {
+      const sep = document.createElement("span");
+      sep.className = "tick-sep";
+      sep.textContent = "·";
+      track.appendChild(sep);
+    }
+
+    const item = document.createElement("div");
+    item.className = "tick-item";
+
+    if (showLogos) {
+      const logoInfo = LOGO[ev.provider];
+      if (logoInfo) {
+        const img = document.createElement("img");
+        img.src       = logoInfo.src;
+        img.className = logoInfo.cls;
+        img.alt       = ev.provider;
+        item.appendChild(img);
+      }
+    }
+
+    const timeEl = document.createElement("span");
+    timeEl.className = "time";
+    timeEl.textContent = new Date(ev.estimatedTime).toLocaleTimeString("en-US", {
+      hour: "numeric", minute: "2-digit", hour12: true, timeZone: "America/New_York"
+    });
+    item.appendChild(timeEl);
+
+    const nameEl = document.createElement("span");
+    nameEl.className = "train-id-route";
+    if (ev.trainId) nameEl.appendChild(document.createTextNode(ev.trainId));
+    if (ev.route) {
+      if (ev.trainId) nameEl.appendChild(document.createTextNode(" · "));
+      const routeEl = document.createElement("span");
+      routeEl.textContent = ev.route;
+      if (ev.metroRouteCls) routeEl.className = "route-line " + ev.metroRouteCls;
+      nameEl.appendChild(routeEl);
+    }
+    item.appendChild(nameEl);
+
+    if (ev.headsign) {
+      const hs = document.createElement("span");
+      hs.className   = "headsign";
+      hs.textContent = "→ " + ev.headsign;
+      item.appendChild(hs);
+    }
+
+    const delay = ev.delayMinutes ?? 0;
+    const badge = document.createElement("span");
+    badge.className   = "delay " + (delay > 1 ? "late" : delay < -1 ? "early" : "on");
+    badge.textContent = delay > 1 ? `+${delay}m` : delay < -1 ? `${delay}m` : "On time";
+    item.appendChild(badge);
+
+    track.appendChild(item);
+  });
+}
+
+function buildFactContent(fact) {
+  track.innerHTML = "";
+  const item = document.createElement("div");
+  item.className = "tick-item tick-item-fact";
+
+  const star = document.createElement("span");
+  star.className   = "fact-star";
+  star.textContent = "★";
+  item.appendChild(star);
+
+  const text = document.createElement("span");
+  text.className = "fact-body";
+  text.textContent = fact;
+  item.appendChild(text);
+
+  track.appendChild(item);
+}
+
+/* ── scroll animation ───────────────────────────────────────── */
+let scrollRafId = null;
+
+function scrollTrack(from, to, durationMs) {
+  return new Promise(resolve => {
+    let start = null;
+    function step(ts) {
+      if (!start) start = ts;
+      const t = Math.min((ts - start) / durationMs, 1);
+      track.style.transform = `translateX(${from + (to - from) * t}px)`;
+      if (t < 1) {
+        scrollRafId = requestAnimationFrame(step);
+      } else {
+        scrollRafId = null;
+        resolve();
+      }
+    }
+    scrollRafId = requestAnimationFrame(step);
+  });
+}
+
+/* ── main run loop ──────────────────────────────────────────── */
+async function runLoop() {
+  while (true) {
+    const runType = RUNS[runIndex % RUNS.length];
+
+    // ① Build content for this run
+    if (runType === "funfact") {
+      buildFactContent(tickerFacts[factIndex % tickerFacts.length]);
+    } else {
+      buildEventContent(
+        tickerEventsForRun(runType),
+        emptyMessageType(runType),
+        runType !== "metro"
+      );
+    }
+
+    // ② Snap to left edge and measure
+    track.style.transform = "translateX(0)";
+    await nextFrame();
+    await nextFrame(); // two frames to ensure images don't affect layout
+
+    const wrapW  = wrap.offsetWidth;
+    const totalW = track.scrollWidth;
+
+    // ③ Opening dwell — content visible at left edge
+    const openDwell = runType === "funfact" ? FACT_DWELL : START_DWELL;
+    await sleep(openDwell);
+
+    // ④ Scroll everything off to the left
+    const scrollDist = totalW;
+    const scrollDur  = (scrollDist / SPEED_PX_S) * 1000;
+    await scrollTrack(0, -scrollDist, scrollDur);
+
+    // ⑤ Closing dwell (content is off-screen — safe to rebuild behind the scenes)
+    await sleep(END_DWELL);
+
+    // ⑥ Advance counters
+    if (runType === "funfact") factIndex++;
+    runIndex++;
+    const nextType = RUNS[runIndex % RUNS.length];
+
+    // ⑦ Silently load next content while track is off-screen
+    if (nextType === "funfact") {
+      buildFactContent(tickerFacts[factIndex % tickerFacts.length]);
+    } else {
+      buildEventContent(
+        tickerEventsForRun(nextType),
+        emptyMessageType(nextType),
+        nextType !== "metro"
+      );
+    }
+
+    // ⑧ Swap the label badge with the drop-down animation
+    await swapLabel(nextType);
+
+    // ⑨ Snap track to x=0 — content appears as label finishes sliding in
+    track.style.transform = "translateX(0)";
+
+    // ⑩ Refresh data at the top of each full cycle
+    if (runIndex % RUNS.length === 0) {
+      fetchData(); // fire and forget — won't interrupt animation
+    }
+  }
+}
+
+/* ── init ───────────────────────────────────────────────────── */
+function syncTickerNightMode() {
+  const h = new Date().getHours();
+  document.documentElement.classList.toggle("night", h >= 19 || h < 6);
+}
+
+async function init() {
+  await Promise.all([loadTickerConfig(), loadTickerFacts()]);
+  syncTickerNightMode();
+  setInterval(syncTickerNightMode, 60_000);
+  applyLabelConfig(RUNS[0]);
+  setLabelY(0);
+  await fetchData();
+  if (REFRESH_MS > 0) setInterval(fetchData, REFRESH_MS);
+  runLoop();
+}
+
+init();
+</script>
+</body>
+</html>
