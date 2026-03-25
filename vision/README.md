@@ -36,6 +36,23 @@ python -m vision.label_app
 
 Open `http://127.0.0.1:8765`.
 
+### Assist maps for region grow (optional)
+
+Offline preprocessing adds two PNGs next to each screenshot (same directory):
+
+- `{stem}_assist_fg.png` — foreground confidence vs a median or supplied background
+- `{stem}_assist_edge.png` — edges plus optional superpixel boundaries (needs `opencv-contrib-python-headless` for SLIC)
+
+Generate them from repo root (defaults to `VISION_SCREENSHOT_DIR`):
+
+```bash
+python -m vision.label_assist_preprocess --help
+# Example:
+python -m vision.label_assist_preprocess --dir /path/to/screenshots
+```
+
+In **Region grow + brush** mode, the UI can **gate** flood fill using FG (skip low-FG pixels; disabled for **Erase** / train id 0) and **block** expansion across strong edge pixels. Tweak **FG min** and **Edge cross** if grow stops too early or still leaks.
+
 The UI is desktop-first:
 
 - screenshot and overlays on the left
@@ -57,12 +74,26 @@ The UI is desktop-first:
 
 If YOLO says 1 but you see 2 trains: set train count to 2 and label both trains.
 
-### Grid painting (instance separation)
+### Spatial overlay (instance separation)
+
+Choose **Coarse grid** or **Region grow + brush**:
+
+**Grid mode**
 
 - Choose a brush: `Train 1`, `Train 2`, ... or `Erase`
-- Click or drag to paint cells
-- Grid stores per-cell train IDs in `train_grid_json`
-- Use **Show grid paint on image** toggle when colors are distracting
+- Click or drag across cells
+- Stored in `train_grid_json` (per-cell train ids)
+
+**Region grow + brush**
+
+- **Grow (click)**: flood-fill similarly-colored pixels (LAB distance) from the click; tune **Grow sensitivity**
+- Optional **Gate grow with FG** / **Block at edges** when `*_assist_*.png` sidecars exist (see above)
+- **Brush (drag)**: circular stamp to paint or erase; tune **Brush radius**
+- Mask is stored downsampled (max side ~400px, ≤200k pixels) as **`train_mask_json`**: `{w,h,rle}` run-length encoding (`0` = empty, `1..6` = train id)
+
+Use **Show paint on image** when overlays are distracting (grid + mask both respect this).
+
+You may keep **both** grid and mask on one row if you switch modes; exports can include both fields.
 
 ### Ambiguous cell rule
 
@@ -87,7 +118,8 @@ Important fields:
 - `present`
 - `num_trains`
 - `trains_json` (per-train metadata array)
-- `train_grid_json` (optional per-cell spatial assignments)
+- `train_grid_json` (optional coarse grid)
+- `train_mask_json` (optional region-grow / brush mask, RLE)
 
 Compatibility note:
 

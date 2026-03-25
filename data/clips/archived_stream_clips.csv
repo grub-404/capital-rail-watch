@@ -1,18 +1,4 @@
 clip_name,video_id,url,section,notes
-z7_seg24,z7KgEnxJo_s,https://www.youtube.com/watch?v=z7KgEnxJo_s,*48:00-50:00,Batch: z7_seg00-z7_seg23 omitted (already downloaded). Full VOD ~39285s (~10h54m) via yt-dlp; scripts/download_archived_stream_clips.sh
-z7_seg25,z7KgEnxJo_s,https://www.youtube.com/watch?v=z7KgEnxJo_s,*50:00-52:00,
-z7_seg26,z7KgEnxJo_s,https://www.youtube.com/watch?v=z7KgEnxJo_s,*52:00-54:00,
-z7_seg27,z7KgEnxJo_s,https://www.youtube.com/watch?v=z7KgEnxJo_s,*54:00-56:00,
-z7_seg28,z7KgEnxJo_s,https://www.youtube.com/watch?v=z7KgEnxJo_s,*56:00-58:00,
-z7_seg29,z7KgEnxJo_s,https://www.youtube.com/watch?v=z7KgEnxJo_s,*58:00-1:00:00,
-z7_seg30,z7KgEnxJo_s,https://www.youtube.com/watch?v=z7KgEnxJo_s,*1:00:00-1:02:00,
-z7_seg31,z7KgEnxJo_s,https://www.youtube.com/watch?v=z7KgEnxJo_s,*1:02:00-1:04:00,
-z7_seg32,z7KgEnxJo_s,https://www.youtube.com/watch?v=z7KgEnxJo_s,*1:04:00-1:06:00,
-z7_seg33,z7KgEnxJo_s,https://www.youtube.com/watch?v=z7KgEnxJo_s,*1:06:00-1:08:00,
-z7_seg34,z7KgEnxJo_s,https://www.youtube.com/watch?v=z7KgEnxJo_s,*1:08:00-1:10:00,
-z7_seg35,z7KgEnxJo_s,https://www.youtube.com/watch?v=z7KgEnxJo_s,*1:10:00-1:12:00,
-z7_seg36,z7KgEnxJo_s,https://www.youtube.com/watch?v=z7KgEnxJo_s,*1:12:00-1:14:00,
-z7_seg37,z7KgEnxJo_s,https://www.youtube.com/watch?v=z7KgEnxJo_s,*1:14:00-1:16:00,
 z7_seg38,z7KgEnxJo_s,https://www.youtube.com/watch?v=z7KgEnxJo_s,*1:16:00-1:18:00,
 z7_seg39,z7KgEnxJo_s,https://www.youtube.com/watch?v=z7KgEnxJo_s,*1:18:00-1:20:00,
 z7_seg40,z7KgEnxJo_s,https://www.youtube.com/watch?v=z7KgEnxJo_s,*1:20:00-1:22:00,

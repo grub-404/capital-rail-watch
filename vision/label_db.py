@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS screenshot_labels (
     num_cars INTEGER,
     num_trains INTEGER,
     train_grid_json TEXT,
+    train_mask_json TEXT,
     trains_json TEXT,
     notes TEXT
 );
@@ -37,6 +38,7 @@ class LabelRow:
     num_cars: int | None
     num_trains: int | None
     train_grid_json: str | None
+    train_mask_json: str | None
     trains_json: str | None
     notes: str | None
 
@@ -50,6 +52,8 @@ def _migrate_screenshot_labels(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE screenshot_labels ADD COLUMN train_grid_json TEXT")
     if "trains_json" not in cols:
         conn.execute("ALTER TABLE screenshot_labels ADD COLUMN trains_json TEXT")
+    if "train_mask_json" not in cols:
+        conn.execute("ALTER TABLE screenshot_labels ADD COLUMN train_mask_json TEXT")
 
 
 def connect(db_path: Path) -> sqlite3.Connection:
@@ -67,7 +71,7 @@ def list_screenshot_pngs(screenshot_dir: Path) -> list[str]:
         return []
     out: list[str] = []
     for p in sorted(screenshot_dir.iterdir()):
-        if p.is_file() and p.suffix.lower() == ".png":
+        if p.is_file() and p.suffix.lower() == ".png" and "_assist_" not in p.name:
             out.append(p.name)
     return out
 
@@ -105,6 +109,10 @@ def utc_now_iso() -> str:
 _MAX_GRID_DIM = 24
 _MAX_GRID_CELLS = 576  # 24*24
 _MAX_TRAIN_INDEX_IN_GRID = 8
+_MAX_MASK_W = 512
+_MAX_MASK_H = 512
+_MAX_MASK_PIXELS = 200_000
+_MAX_MASK_TRAIN_ID = 8
 
 
 def normalize_train_grid_json(raw: str | None) -> str | None:
@@ -199,6 +207,53 @@ def normalize_trains_json(
     return json.dumps(norm, separators=(",", ":"), ensure_ascii=False)
 
 
+def normalize_train_mask_json(raw: str | None) -> str | None:
+    """Validate region-grow paint mask: compact RLE over a downsampled image grid.
+
+    Expected shape::
+
+        {"w":W,"h":H,"rle":[v0,n0,v1,n1,...]}
+
+    Where v is 0..8 (0 = none, 1..K = train id) and sum(n) == W*H.
+    """
+    if not raw or not str(raw).strip():
+        return None
+    try:
+        obj = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(obj, dict):
+        return None
+    w = obj.get("w")
+    h = obj.get("h")
+    rle = obj.get("rle")
+    if not isinstance(w, int) or not isinstance(h, int):
+        return None
+    if w < 1 or h < 1 or w > _MAX_MASK_W or h > _MAX_MASK_H:
+        return None
+    total = w * h
+    if total > _MAX_MASK_PIXELS:
+        return None
+    if not isinstance(rle, list) or len(rle) < 2 or len(rle) % 2 != 0:
+        return None
+    out: list[int] = []
+    acc = 0
+    for i in range(0, len(rle), 2):
+        v = rle[i]
+        n = rle[i + 1]
+        if not isinstance(v, int) or not 0 <= v <= _MAX_MASK_TRAIN_ID:
+            return None
+        if not isinstance(n, int) or n <= 0:
+            return None
+        acc += n
+        if acc > total:
+            return None
+        out.extend([v, n])
+    if acc != total:
+        return None
+    return json.dumps({"w": w, "h": h, "rle": out}, separators=(",", ":"))
+
+
 def save_label(
     conn: sqlite3.Connection,
     *,
@@ -210,14 +265,15 @@ def save_label(
     num_cars: int | None,
     num_trains: int | None,
     train_grid_json: str | None,
+    train_mask_json: str | None,
     trains_json: str | None,
     notes: str | None,
 ) -> None:
     conn.execute(
         """INSERT OR REPLACE INTO screenshot_labels
            (filename, labeled_at, skipped, present, provider, engine_model, num_cars,
-            num_trains, train_grid_json, trains_json, notes)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            num_trains, train_grid_json, train_mask_json, trains_json, notes)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             filename,
             utc_now_iso(),
@@ -228,6 +284,7 @@ def save_label(
             num_cars if not skipped and num_cars is not None else None,
             None if skipped else num_trains,
             None if skipped else train_grid_json,
+            None if skipped else train_mask_json,
             None if skipped else trains_json,
             (notes or "").strip() or None,
         ),

@@ -4,3 +4,5 @@ pytest>=8.0
 ultralytics>=8.0
 # Vision slice 2+ (YouTube clip downloads)
 yt-dlp>=2024.1.0
+# Label assist maps (median bg, edges, SLIC superpixel borders in ximgproc)
+opencv-contrib-python-headless>=4.8.0

@@ -15,6 +15,7 @@ from vision.label_db import (
     connect,
     export_jsonl,
     normalize_train_grid_json,
+    normalize_train_mask_json,
     normalize_trains_json,
 )
 
@@ -73,6 +74,7 @@ def test_submit_then_next(label_env) -> None:
         assert row["num_cars"] == 6
         assert row["num_trains"] == 1
         assert row["train_grid_json"] is None
+        assert row["train_mask_json"] is None
         assert row["trains_json"] is not None
         assert json.loads(row["trains_json"])[0]["provider"] == "amtrak"
     finally:
@@ -95,6 +97,32 @@ def test_skip(label_env) -> None:
         assert row["skipped"] == 1
         body = export_jsonl(conn)
         assert "a.png" not in body
+    finally:
+        conn.close()
+
+
+def test_submit_train_mask_json(label_env) -> None:
+    app, _shot, db = label_env
+    c = app.test_client()
+    mask = json.dumps({"w": 2, "h": 2, "rle": [1, 1, 0, 3]})
+    c.post(
+        "/label/submit",
+        data={
+            "filename": "a.png",
+            "present": "1",
+            "train_mask_json": mask,
+            "notes": "",
+        },
+    )
+    conn = connect(db)
+    try:
+        row = conn.execute(
+            "SELECT train_mask_json, num_trains FROM screenshot_labels WHERE filename = ?",
+            ("a.png",),
+        ).fetchone()
+        assert row["num_trains"] == 1
+        assert row["train_mask_json"] is not None
+        assert json.loads(row["train_mask_json"])["w"] == 2
     finally:
         conn.close()
 
@@ -124,7 +152,7 @@ def test_submit_num_trains_and_grid(label_env) -> None:
     conn = connect(db)
     try:
         row = conn.execute(
-            "SELECT num_trains, train_grid_json, trains_json, provider FROM screenshot_labels WHERE filename = ?",
+            "SELECT num_trains, train_grid_json, train_mask_json, trains_json, provider FROM screenshot_labels WHERE filename = ?",
             ("a.png",),
         ).fetchone()
         assert row["num_trains"] == 2
@@ -132,6 +160,7 @@ def test_submit_num_trains_and_grid(label_env) -> None:
         g = json.loads(row["train_grid_json"])
         assert g["rows"] == 4 and g["cols"] == 4
         assert g["cells"][0] == 1 and g["cells"][2] == 2
+        assert row["train_mask_json"] is None
         tj = json.loads(row["trains_json"])
         assert len(tj) == 2
         assert tj[1]["provider"] == "marc"
@@ -193,7 +222,52 @@ def test_normalize_trains_json() -> None:
     assert json.loads(out)[0]["num_cars"] == 5
 
 
+def test_normalize_train_mask_json() -> None:
+    assert normalize_train_mask_json("") is None
+    assert normalize_train_mask_json("not json") is None
+    ok = normalize_train_mask_json('{"w":3,"h":2,"rle":[0,3,1,2,0,1]}')
+    assert json.loads(ok) == {"w": 3, "h": 2, "rle": [0, 3, 1, 2, 0, 1]}
+    assert normalize_train_mask_json('{"w":3,"h":2,"rle":[0,5]}') is None  # wrong total
+
+
 def test_media_path_traversal(label_env) -> None:
     app, _shot, _db = label_env
     c = app.test_client()
     assert c.get("/media/../labels.db").status_code in (400, 403, 404)
+
+
+def test_assist_serves_sidecars(label_env) -> None:
+    app, shot, _db = label_env
+    from vision.label_assist import ASSIST_EDGE_SUFFIX, ASSIST_FG_SUFFIX
+
+    cv2.imwrite(str(shot / f"a{ASSIST_FG_SUFFIX}"), np.full((8, 8), 200, dtype=np.uint8))
+    cv2.imwrite(str(shot / f"a{ASSIST_EDGE_SUFFIX}"), np.full((8, 8), 50, dtype=np.uint8))
+    c = app.test_client()
+    r_fg = c.get("/assist/fg/a.png")
+    r_edge = c.get("/assist/edge/a.png")
+    assert r_fg.status_code == 200
+    assert r_edge.status_code == 200
+    assert r_fg.mimetype == "image/png"
+
+
+def test_assist_missing_returns_404(label_env) -> None:
+    app, _shot, _db = label_env
+    c = app.test_client()
+    assert c.get("/assist/fg/b.png").status_code == 404
+
+
+def test_index_lists_assist_urls_when_present(label_env) -> None:
+    app, shot, _db = label_env
+    from vision.label_assist import ASSIST_FG_SUFFIX
+
+    cv2.imwrite(str(shot / f"a{ASSIST_FG_SUFFIX}"), np.zeros((4, 4), dtype=np.uint8))
+    c = app.test_client()
+    r = c.get("/")
+    assert r.status_code == 200
+    assert b"/assist/fg/a.png" in r.data
+
+
+def test_assist_path_traversal_rejected(label_env) -> None:
+    app, _shot, _db = label_env
+    c = app.test_client()
+    assert c.get("/assist/fg/../labels.db").status_code in (400, 403, 404)

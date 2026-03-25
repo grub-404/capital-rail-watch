@@ -26,3 +26,4 @@ data/clips/*
 
 # Vision screenshots (PNG + JSON sidecars)
 data/vision_screenshots/
+sam_b.pt
