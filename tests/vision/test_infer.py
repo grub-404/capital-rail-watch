@@ -91,8 +91,12 @@ def test_video_smoke_inmemory_clip(yolo_model, tmp_path: Path) -> None:
         writer.write(img)
     writer.release()
 
-    frames = list(infer_video_frames(out_mp4, yolo_model, conf_threshold=_CONF))
+    frames = list(
+        infer_video_frames(
+            out_mp4, yolo_model, conf_threshold=_CONF, sample_interval_sec=0.0
+        )
+    )
     assert len(frames) >= 1
-    for _idx, res in frames:
+    for _idx, res, _bgr in frames:
         assert res.count >= 0
         assert res.present == (res.count > 0)

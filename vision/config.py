@@ -12,12 +12,16 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 @dataclass(frozen=True)
 class VisionConfig:
-    """Paths and thresholds for future inference, screenshots, and yt-dlp corpus."""
+    """Paths and thresholds for inference, screenshots, and yt-dlp corpus."""
 
     model_path: str | None
     conf_threshold: float
     screenshot_dir: Path
     ytdlp_output_dir: Path
+    # Video: approximate time between YOLO runs (uses fps × interval → Ultralytics vid_stride).
+    video_sample_interval_sec: float
+    # Min real time between screenshot PNG+JSON writes while train is present.
+    screenshot_min_interval_sec: float
 
 
 def _env_float(key: str, default: float) -> float:
@@ -55,4 +59,6 @@ def load_vision_config(*, project_root: Path | None = None) -> VisionConfig:
         conf_threshold=_env_float("VISION_CONF_THRESHOLD", 0.5),
         screenshot_dir=_env_path("VISION_SCREENSHOT_DIR", root / "data" / "vision_screenshots"),
         ytdlp_output_dir=_env_path("YTDLP_OUTPUT_DIR", root / "data" / "clips"),
+        video_sample_interval_sec=_env_float("VISION_VIDEO_SAMPLE_INTERVAL_SEC", 1.0),
+        screenshot_min_interval_sec=_env_float("VISION_SCREENSHOT_MIN_INTERVAL_SEC", 10.0),
     )

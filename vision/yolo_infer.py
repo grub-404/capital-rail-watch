@@ -112,26 +112,61 @@ def infer_image(
     )
 
 
+def _video_fps(path: Path) -> float:
+    import cv2
+
+    cap = cv2.VideoCapture(str(path))
+    try:
+        f = float(cap.get(cv2.CAP_PROP_FPS))
+        if f != f or f < 1e-3:
+            return 30.0
+        return f
+    finally:
+        cap.release()
+
+
 def infer_video_frames(
     video_path: Path | str,
     model: Any,
     *,
     conf_threshold: float = 0.5,
-) -> Iterator[tuple[int, DetectionResult]]:
-    """Yield ``(frame_index, DetectionResult)`` for each decoded frame."""
+    sample_interval_sec: float = 0.0,
+) -> Iterator[tuple[int, DetectionResult, Any]]:
+    """
+    Yield ``(frame_index, DetectionResult, orig_bgr)`` for sampled frames.
+
+    ``sample_interval_sec``:
+      - ``<= 0``: run YOLO on every frame (``vid_stride=1``).
+      - ``> 0``: set ``vid_stride ≈ round(fps * interval)`` so inference is spaced in *video* time
+        (approximate; depends on reported FPS).
+    ``orig_bgr`` is ``Results.orig_img`` (numpy BGR) or ``None`` if missing.
+    """
     path = Path(video_path).resolve()
+    fps = _video_fps(path)
+    if sample_interval_sec and sample_interval_sec > 0:
+        stride = max(1, int(round(fps * float(sample_interval_sec))))
+    else:
+        stride = 1
+
     stream = model.predict(
         source=str(path),
         conf=conf_threshold,
         stream=True,
         verbose=False,
+        vid_stride=stride,
     )
     for i, r in enumerate(stream):
-        yield i, yolo_result_to_detection(
-            r,
-            model.names,
-            source=str(path),
-            frame_id=str(i),
+        frame_index = i * stride
+        orig = getattr(r, "orig_img", None)
+        yield (
+            frame_index,
+            yolo_result_to_detection(
+                r,
+                model.names,
+                source=str(path),
+                frame_id=str(frame_index),
+            ),
+            orig,
         )
 
 

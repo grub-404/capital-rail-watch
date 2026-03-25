@@ -23,3 +23,6 @@ node_modules/
 data/clips/*
 !data/clips/manifest.csv
 !data/clips/archived_stream_clips.csv
+
+# Vision screenshots (PNG + JSON sidecars)
+data/vision_screenshots/

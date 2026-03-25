@@ -97,6 +97,8 @@ Incremental delivery for pretrained YOLO (train / locomotive / railcar), yes-no 
 
 - A directory the label app (slice 5) can consume.
 
+**Status:** Implemented — `vision/screenshot.py` (`ScreenshotWriter`), wired to `python -m vision.infer --screenshots`; configurable **`VISION_VIDEO_SAMPLE_INTERVAL_SEC`** (time-based inference sampling via Ultralytics **`vid_stride`**) and **`VISION_SCREENSHOT_MIN_INTERVAL_SEC`**; outputs under **`VISION_SCREENSHOT_DIR`** (default `data/vision_screenshots/`, gitignored); tests in `tests/vision/test_screenshot.py`.
+
 ---
 
 ## Slice 4 — HTTP API + optional bridge from Flask

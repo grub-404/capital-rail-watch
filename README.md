@@ -99,6 +99,7 @@ vision/
   infer.py           # CLI: python -m vision.infer (slice 1)
   fetch.py           # CLI: python -m vision.fetch (slice 2, yt-dlp)
   clip_fetch.py      # Manifest parsing + yt-dlp argv builder
+  screenshot.py      # PNG + JSON sidecars when train present (slice 3)
   yolo_infer.py      # Ultralytics wrapper → DetectionResult
   test_stills/       # Regression images (with_train / without_train)
 ```
@@ -119,12 +120,15 @@ The **`vision/`** package will hold pretrained YOLO inference (train / locomotiv
 ```bash
 python -m vision.infer --input path/to/screenshot.png
 python -m vision.infer --input path/to/clips/ --out-dir ./vision_infer_out
-python -m vision.infer --input path/to/video.mp4 --out-dir ./out   # writes results.jsonl per frame
+python -m vision.infer --input path/to/video.mp4 --out-dir ./out
+python -m vision.infer --input data/clips/z7KgEnxJo_s/ --screenshots --sample-interval-sec 1
 ```
 
 - **Image** (single file): writes **`result.json`** (`DetectionResult`) under `--out-dir`.
 - **Directory** of images: writes **`{stem}_result.json`** per file.
-- **Video**: writes **`results.jsonl`** (one JSON object per line per frame).
+- **Video** / **folder of `.mp4`**: writes **`*_results.jsonl`** — one JSON line per **sampled** frame (not every decoded frame by default).
+- **Time sampling**: default **`VISION_VIDEO_SAMPLE_INTERVAL_SEC=1.0`** → Ultralytics **`vid_stride ≈ round(fps × interval)`**. Set **`0`** or **`--sample-interval-sec 0`** for every frame (slow).
+- **Slice 3 — Screenshots**: **`--screenshots`** saves **`{timestamp}_{source}_{frame}.png`** + matching **`.json`** under **`VISION_SCREENSHOT_DIR`** when **`present`**, throttled by **`VISION_SCREENSHOT_MIN_INTERVAL_SEC`** (default 10s). Override with **`--screenshot-dir`** / **`--screenshot-min-interval-sec`**.
 - **`--annotate`**: saves annotated JPEG next to JSON (images only).
 
 **Slice 2** — **yt-dlp** clip harness. **`data/clips/manifest.csv`** lists `clip_name`, `video_id`, `url`, `section` (yt-dlp `--download-sections`, e.g. `*0:00-2:00`), and `notes`. Downloads go to **`data/clips/{video_id}/{clip_name}.mp4`** (or **`YTDLP_OUTPUT_DIR`**). Live watch URLs may fail until a VOD exists—update the CSV when the replay is up.
