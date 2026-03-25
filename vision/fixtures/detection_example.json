@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "present": true,
+  "count": 2,
+  "boxes": [
+    {
+      "x": 120.5,
+      "y": 200.0,
+      "w": 400.0,
+      "h": 180.0,
+      "conf": 0.91,
+      "label": "locomotive"
+    },
+    {
+      "x": 540.0,
+      "y": 210.25,
+      "w": 320.0,
+      "h": 160.0,
+      "conf": 0.72,
+      "label": "railcar"
+    }
+  ],
+  "frame_id": "demo-000042",
+  "source": "fixture",
+  "timestamp_utc": "2025-03-24T18:30:00Z"
+}

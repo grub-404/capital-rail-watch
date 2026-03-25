@@ -21,6 +21,12 @@ source .venv/bin/activate    # Mac/Linux — Windows: .venv\Scripts\activate
 python -m pip install -r backend/requirements.txt
 ```
 
+To run **unit tests** (including `tests/vision/`), also install dev dependencies:
+
+```bash
+python -m pip install -r requirements-dev.txt
+```
+
 Always activate the venv before running the server. If you see **`pyenv: pip: command not found`**, your shell does not have a standalone `pip` on `PATH` for the active Python. Using **`python -m pip`** (as above) runs pip as a module and avoids that. Alternatively, pick the Python version pyenv lists as having pip: `pyenv shell 3.10.14` then retry.
 
 ### 3. Set up WMATA key (optional — for Metro data)
@@ -84,6 +90,26 @@ overlay/
   *.svg              # Logos for the ticker (Amtrak, MARC)
 db/
   schema.sql         # SQLite schema for train logging
+vision/
+  PLAN.md            # Phased plan: YOLO, screenshots, yt-dlp corpus, labeling app
+  schema + config    # Detection JSON contract and env-driven paths (slice 0)
+```
+
+### Vision pipeline (experimental)
+
+The **`vision/`** package will hold pretrained YOLO inference (train / locomotive / railcar), a **yes/no + box + count** payload, **screenshot capture** with JSON sidecars, **yt-dlp**-based test clips, and later a **crowd labeling** webapp. Roadmap and slices: **[vision/PLAN.md](vision/PLAN.md)**.
+
+**Slice 0 (current)** defines the shared contract only—no model weights required:
+
+- **`vision/schema.py`** — `DetectionResult` / `DetectionBox`; `present`, `count`, `boxes[]`, `frame_id`, `source`, `timestamp_utc`, `version`.
+- **`vision/labels.py`** — which YOLO class names count as one “train” for aggregation.
+- **`vision/config.py`** — reads optional **`VISION_*`** and **`YTDLP_OUTPUT_DIR`** from the repo-root `.env` (see `.env.example`).
+- **`vision/fixtures/detection_example.json`** — example payload for tests and API docs.
+
+Run vision unit tests from the repo root:
+
+```bash
+python -m pytest tests/ -q
 ```
 
 ## API Endpoints
