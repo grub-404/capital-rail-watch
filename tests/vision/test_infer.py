@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from vision.schema import parse_detection_result
-from vision.yolo_infer import infer_image, infer_video_frames, is_image_path
+from vision.yolo_infer import infer_image, infer_video_frames, is_image_path, is_video_path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 TEST_STILLS = REPO_ROOT / "vision" / "test_stills"
@@ -61,6 +61,15 @@ def test_without_train_stills_no_train(yolo_model) -> None:
             f"expected at most {cap} train-like box(es) in {p.name}, got {r.count}"
         )
         assert r.present == (r.count > 0)
+
+
+def test_is_video_path_ignores_ytdlp_part_names(tmp_path: Path) -> None:
+    (tmp_path / "done.mp4").touch()
+    (tmp_path / "wip.mp4.part").touch()
+    (tmp_path / "frag.ytdl").touch()
+    assert is_video_path(tmp_path / "done.mp4") is True
+    assert is_video_path(tmp_path / "wip.mp4.part") is False
+    assert is_video_path(tmp_path / "frag.ytdl") is False
 
 
 def test_video_smoke_inmemory_clip(yolo_model, tmp_path: Path) -> None:

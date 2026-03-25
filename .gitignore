@@ -1,6 +1,7 @@
 .venv/
 __pycache__/
 vision_infer_out/
+vision_infer_smoke/
 runs/
 *.pyc
 *.db
@@ -17,3 +18,8 @@ node_modules/
 !vision/test_stills/**/*.jpg
 !vision/test_stills/**/*.jpeg
 !.env.example
+
+# Downloaded YouTube clips + fetch log (keep data/clips/manifest.csv)
+data/clips/*
+!data/clips/manifest.csv
+!data/clips/archived_stream_clips.csv

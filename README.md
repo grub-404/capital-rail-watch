@@ -90,9 +90,15 @@ overlay/
   *.svg              # Logos for the ticker (Amtrak, MARC)
 db/
   schema.sql         # SQLite schema for train logging
+data/clips/
+  manifest.csv       # YouTube URLs + time ranges for yt-dlp (slice 2); downloaded mp4s stay local-only
+scripts/
+  fetch_clips.sh     # Wrapper: python -m vision.fetch --from-manifest …
 vision/
   PLAN.md            # Phased plan: YOLO, screenshots, yt-dlp corpus, labeling app
   infer.py           # CLI: python -m vision.infer (slice 1)
+  fetch.py           # CLI: python -m vision.fetch (slice 2, yt-dlp)
+  clip_fetch.py      # Manifest parsing + yt-dlp argv builder
   yolo_infer.py      # Ultralytics wrapper → DetectionResult
   test_stills/       # Regression images (with_train / without_train)
 ```
@@ -120,6 +126,15 @@ python -m vision.infer --input path/to/video.mp4 --out-dir ./out   # writes resu
 - **Directory** of images: writes **`{stem}_result.json`** per file.
 - **Video**: writes **`results.jsonl`** (one JSON object per line per frame).
 - **`--annotate`**: saves annotated JPEG next to JSON (images only).
+
+**Slice 2** — **yt-dlp** clip harness. **`data/clips/manifest.csv`** lists `clip_name`, `video_id`, `url`, `section` (yt-dlp `--download-sections`, e.g. `*0:00-2:00`), and `notes`. Downloads go to **`data/clips/{video_id}/{clip_name}.mp4`** (or **`YTDLP_OUTPUT_DIR`**). Live watch URLs may fail until a VOD exists—update the CSV when the replay is up.
+
+```bash
+python -m pip install -r requirements-dev.txt   # includes yt-dlp
+python -m vision.fetch --from-manifest --dry-run              # print commands + append fetch_log.csv
+./scripts/fetch_clips.sh --dry-run
+python -m vision.fetch --from-manifest                        # actually run yt-dlp
+```
 
 Regression stills live under **`vision/test_stills/`**. If COCO ever mis-fires on a true negative, you can add **`vision/test_stills/expectations.json`** with per-file `max_train_detections` under `without_train` (see `tests/vision/test_infer.py`).
 

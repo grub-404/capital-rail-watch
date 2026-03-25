@@ -6,6 +6,7 @@ Usage::
     python -m vision.infer --input path/to/image.png
     python -m vision.infer --input path/to/video.mp4 --out-dir ./out
     python -m vision.infer --input path/to/folder_of_images/
+    python -m vision.infer --input path/to/folder_of_mp4s/
 
 Environment: optional ``VISION_MODEL_PATH``, ``VISION_CONF_THRESHOLD`` (see ``vision.config``).
 """
@@ -26,6 +27,7 @@ from vision.yolo_infer import (
     is_image_path,
     is_video_path,
     list_image_paths,
+    list_video_paths,
     load_yolo_model,
 )
 
@@ -60,7 +62,7 @@ def main(argv: list[str] | None = None) -> int:
         "-i",
         required=True,
         type=Path,
-        help="Image file, video file, or directory of images",
+        help="Image file, video file, or directory of images and/or videos",
     )
     parser.add_argument(
         "--out-dir",
@@ -101,20 +103,59 @@ def main(argv: list[str] | None = None) -> int:
     model = load_yolo_model(weights)
 
     if inp.is_dir():
-        paths = list_image_paths(inp)
-        if not paths:
-            print(f"[vision.infer] no images in {inp}", file=sys.stderr)
+        vids = list_video_paths(inp)
+        imgs = list_image_paths(inp)
+        if not vids and not imgs:
+            print(
+                f"[vision.infer] no images or videos in {inp}",
+                file=sys.stderr,
+            )
             return 3
-        for p in paths:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        video_errors = 0
+        for p in vids:
+            jsonl_path = out_dir / f"{p.stem}_results.jsonl"
+            try:
+                n = 0
+                with open(jsonl_path, "w", encoding="utf-8") as f:
+                    for _i, res in infer_video_frames(p, model, conf_threshold=conf):
+                        f.write(
+                            json.dumps(
+                                detection_result_to_json_dict(res),
+                                separators=(",", ":"),
+                            )
+                        )
+                        f.write("\n")
+                        n += 1
+                print(f"[vision.infer] {p.name} → {n} frame(s) → {jsonl_path.name}")
+            except Exception as e:
+                video_errors += 1
+                if jsonl_path.exists():
+                    try:
+                        jsonl_path.unlink()
+                    except OSError:
+                        pass
+                print(
+                    f"[vision.infer] skip {p.name}: {e}",
+                    file=sys.stderr,
+                )
+        if video_errors:
+            print(
+                f"[vision.infer] {video_errors} video(s) failed (e.g. incomplete file); others unchanged.",
+                file=sys.stderr,
+            )
+        for p in imgs:
             res = infer_image(p, model, conf_threshold=conf)
             stem = p.stem
-            _write_json(out_dir / f"{stem}_result.json", detection_result_to_json_dict(res))
+            _write_json(
+                out_dir / f"{stem}_result.json", detection_result_to_json_dict(res)
+            )
             if args.annotate:
                 _save_annotated(
                     model, p, out_dir / f"{stem}_annotated.jpg", conf_threshold=conf
                 )
-        print(f"[vision.infer] wrote {len(paths)} result JSON file(s) → {out_dir}")
-        return 0
+        print(f"[vision.infer] wrote outputs under {out_dir}")
+        return 1 if video_errors else 0
 
     if is_image_path(inp):
         res = infer_image(inp, model, conf_threshold=conf)

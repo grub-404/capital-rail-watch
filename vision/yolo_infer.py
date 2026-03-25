@@ -19,6 +19,8 @@ DEFAULT_YOLO_WEIGHTS = "yolov8n.pt"
 
 _IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
 _VIDEO_SUFFIXES = {".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v"}
+# yt-dlp / browsers often use these while a file is still growing or fragmented.
+_INCOMPLETE_SUFFIXES = frozenset({".part", ".ytdl", ".tmp", ".temp"})
 
 
 def _utc_now_iso() -> str:
@@ -138,6 +140,10 @@ def is_image_path(path: Path) -> bool:
 
 
 def is_video_path(path: Path) -> bool:
+    """True for playable video extensions; false for ``.mp4.part`` and similar in-progress names."""
+    lower = [s.lower() for s in path.suffixes]
+    if any(s in _INCOMPLETE_SUFFIXES for s in lower):
+        return False
     return path.suffix.lower() in _VIDEO_SUFFIXES
 
 
@@ -147,5 +153,15 @@ def list_image_paths(directory: Path) -> list[Path]:
     out: list[Path] = []
     for p in sorted(directory.iterdir()):
         if p.is_file() and is_image_path(p):
+            out.append(p)
+    return out
+
+
+def list_video_paths(directory: Path) -> list[Path]:
+    if not directory.is_dir():
+        return []
+    out: list[Path] = []
+    for p in sorted(directory.iterdir()):
+        if p.is_file() and is_video_path(p):
             out.append(p)
     return out

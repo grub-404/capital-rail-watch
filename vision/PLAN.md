@@ -74,6 +74,8 @@ Incremental delivery for pretrained YOLO (train / locomotive / railcar), yes-no 
 
 - Anyone can refresh the regression clip set without changing application code.
 
+**Status:** Implemented — `vision/clip_fetch.py`, `vision/fetch.py` (`python -m vision.fetch`), `data/clips/manifest.csv`, `scripts/fetch_clips.sh`, `yt-dlp` in `requirements-dev.txt`, `tests/vision/test_fetch.py`, `pytest.ini` (`integration` mark).
+
 ---
 
 ## Slice 3 — Screenshot saver + session metadata
