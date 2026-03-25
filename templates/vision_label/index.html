@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Label screenshot — Capital Rail Watch</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --card: #1a2332;
+      --text: #e7ecf3;
+      --muted: #8b98a5;
+      --accent: #3d8bfd;
+      --border: #2d3a4d;
+      --yolo: #ffcc00;
+      --t1: rgba(61, 139, 253, 0.45);
+      --t2: rgba(46, 204, 113, 0.45);
+      --t3: rgba(241, 196, 15, 0.45);
+      --t4: rgba(231, 76, 60, 0.45);
+      --t5: rgba(155, 89, 182, 0.45);
+      --t6: rgba(26, 188, 156, 0.45);
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+    header {
+      padding: 0.85rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 1rem;
+    }
+    header h1 { font-size: 1.1rem; font-weight: 600; margin: 0; }
+    .stats { color: var(--muted); font-size: 0.9rem; }
+    main { margin: 0; }
+    main.has-label .label-work {
+      display: grid;
+      grid-template-columns: minmax(480px, 1fr) minmax(360px, 480px);
+      gap: 1.25rem;
+      max-width: 1680px;
+      margin: 0 auto;
+      padding: 1rem 1.5rem 2rem;
+      align-items: start;
+    }
+    @media (max-width: 1024px) {
+      main.has-label .label-work { grid-template-columns: 1fr; }
+    }
+    .label-col-preview { min-width: 0; }
+    .label-col-form { min-width: 0; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.1rem 1.25rem;
+      margin-bottom: 0;
+    }
+    .preview {
+      text-align: center;
+      background: #000;
+      border-radius: 8px;
+      overflow: hidden;
+      padding: 0.65rem;
+    }
+    .image-stack {
+      position: relative;
+      display: inline-block;
+      max-width: 100%;
+      vertical-align: middle;
+    }
+    .image-stack img {
+      display: block;
+      max-width: 100%;
+      max-height: min(88vh, 960px);
+      height: auto;
+      vertical-align: middle;
+    }
+    .overlay-layer {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+    .overlay-layer.grid-layer {
+      display: grid;
+      pointer-events: auto;
+      z-index: 2;
+      touch-action: none;
+      user-select: none;
+    }
+    .grid-cell {
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: transparent;
+      cursor: pointer;
+      padding: 0;
+      min-height: 0;
+      transition: background 0.08s ease;
+    }
+    .grid-cell:hover { filter: brightness(1.15); }
+    .grid-cell.t1 { background: var(--t1); }
+    .grid-cell.t2 { background: var(--t2); }
+    .grid-cell.t3 { background: var(--t3); }
+    .grid-cell.t4 { background: var(--t4); }
+    .grid-cell.t5 { background: var(--t5); }
+    .grid-cell.t6 { background: var(--t6); }
+    #train-grid.selection-hidden .grid-cell.t1,
+    #train-grid.selection-hidden .grid-cell.t2,
+    #train-grid.selection-hidden .grid-cell.t3,
+    #train-grid.selection-hidden .grid-cell.t4,
+    #train-grid.selection-hidden .grid-cell.t5,
+    #train-grid.selection-hidden .grid-cell.t6 {
+      background: transparent !important;
+    }
+    #train-grid.selection-hidden .grid-cell {
+      border-color: rgba(255, 255, 255, 0.06);
+    }
+    #train-grid.selection-hidden .grid-cell:hover {
+      filter: none;
+      background: rgba(255, 255, 255, 0.07) !important;
+    }
+    .overlay-toggles {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      gap: 0.75rem;
+      margin-top: 0.5rem;
+    }
+    .overlay-toggles label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin: 0;
+      font-weight: 500;
+      font-size: 0.85rem;
+      color: var(--muted);
+      cursor: pointer;
+      user-select: none;
+    }
+    .overlay-toggles input { width: auto; accent-color: var(--accent); }
+    svg.yolo-svg {
+      overflow: visible;
+      z-index: 1;
+    }
+    svg.yolo-svg rect {
+      fill: none;
+      stroke: var(--yolo);
+      stroke-width: 2;
+      vector-effect: non-scaling-stroke;
+    }
+    .brush-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.4rem;
+      margin-top: 0.65rem;
+      justify-content: center;
+    }
+    .brush-bar .hint { margin: 0; font-size: 0.8rem; color: var(--muted); }
+    .brush-btn {
+      padding: 0.35rem 0.65rem;
+      border-radius: 6px;
+      border: 2px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+    .brush-btn.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+    .brush-btn.b0 { border-style: dashed; }
+    .brush-btn.b1 { background: var(--t1); border-color: #5a9eff; }
+    .brush-btn.b2 { background: var(--t2); border-color: #2ecc71; }
+    .brush-btn.b3 { background: var(--t3); border-color: #f1c40f; }
+    .brush-btn.b4 { background: var(--t4); border-color: #e74c3c; }
+    .brush-btn.b5 { background: var(--t5); border-color: #9b59b6; }
+    .brush-btn.b6 { background: var(--t6); border-color: #1abc9c; }
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem 1rem;
+      justify-content: center;
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 0.5rem;
+    }
+    .legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
+    .swatch { width: 14px; height: 10px; border-radius: 2px; border: 2px solid var(--yolo); }
+    .hint {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-top: 0.65rem;
+    }
+    label { display: block; margin: 0.65rem 0 0.2rem; font-weight: 500; }
+    input[type="text"], input[type="number"], select, textarea {
+      width: 100%;
+      padding: 0.45rem 0.6rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 0.95rem;
+    }
+    textarea { min-height: 3.5rem; }
+    .train-panel {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem 1rem 1rem;
+      margin-top: 0.75rem;
+      background: rgba(0, 0, 0, 0.2);
+    }
+    .train-panel legend {
+      font-weight: 600;
+      padding: 0 0.35rem;
+    }
+    .train-panel[hidden] { display: none !important; }
+    .row { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin-top: 0.5rem; }
+    .actions { display: flex; flex-wrap: wrap; gap: 0.65rem; margin-top: 1.1rem; }
+    button.primary, .btn.primary {
+      background: var(--accent);
+      color: #fff;
+      padding: 0.55rem 1.1rem;
+      border-radius: 6px;
+      border: none;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+    button.secondary {
+      background: var(--border);
+      color: var(--text);
+      padding: 0.55rem 1rem;
+      border-radius: 6px;
+      border: none;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+    button.danger {
+      background: #5c2d2d;
+      color: #f5d4d4;
+      padding: 0.55rem 1rem;
+      border-radius: 6px;
+      border: none;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+    .btn {
+      padding: 0.55rem 1.1rem;
+      border-radius: 6px;
+      text-decoration: none;
+      display: inline-block;
+      font-size: 0.95rem;
+    }
+    .empty { color: var(--muted); padding: 2rem; text-align: center; max-width: 720px; margin: 0 auto; }
+    code { font-size: 0.85em; background: var(--bg); padding: 0.15em 0.4em; border-radius: 4px; }
+    .form-scroll { max-height: min(88vh, 960px); overflow-y: auto; padding-right: 0.25rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Vision labels</h1>
+    <span class="stats">{{ pending }} pending · {{ labeled }} done</span>
+    <a class="btn secondary" href="{{ url_for('export_labels') }}" style="margin-left:auto">Download labels.jsonl</a>
+  </header>
+  <main class="{% if filename %}has-label{% endif %}">
+    {% if not filename %}
+    <div class="card empty">
+      <p>No unlabeled screenshots in <code>{{ screenshot_dir }}</code>.</p>
+      <p class="hint">Run <code>python -m vision.infer … --screenshots</code> first, or set <code>VISION_SCREENSHOT_DIR</code>.</p>
+    </div>
+    {% else %}
+    <div class="label-work">
+      <div class="label-col-preview">
+        <div class="card preview">
+          <div class="image-stack" id="image-stack">
+            <img id="label-img" src="{{ url_for('serve_screenshot', name=filename) }}" alt="Screenshot" crossorigin="anonymous" />
+            <svg class="overlay-layer yolo-svg" id="yolo-svg" aria-hidden="true"></svg>
+            <div class="overlay-layer grid-layer" id="train-grid" hidden></div>
+          </div>
+          <div class="brush-bar" id="brush-bar">
+            <span class="hint">Grid: pick a train, then click cells.</span>
+          </div>
+          <p class="hint" style="margin-top:0.45rem;margin-bottom:0">Each cell is <strong>one</strong> train only. If two trains fall inside the <em>same</em> cell, pick the dominant one here and say so in <strong>Notes</strong>. If they share one YOLO box but sit in different cells, use two colors on the grid.</p>
+          <div class="legend" id="legend-dynamic">
+            <span><i class="swatch"></i> YOLO (model)</span>
+          </div>
+          <div class="overlay-toggles">
+            <label><input type="checkbox" id="show-grid-paint" checked /> Show grid paint on image</label>
+          </div>
+          <p class="hint" style="margin-bottom:0">{{ filename }}</p>
+          {% if hint %}
+          <p class="hint" style="margin-top:0.35rem">Model hint: present={{ hint.get('present') }}, count={{ hint.get('count') }}</p>
+          {% endif %}
+        </div>
+      </div>
+      <div class="label-col-form">
+        <form class="card form-scroll" method="post" action="{{ url_for('submit_label') }}" id="label-form">
+          <input type="hidden" name="filename" value="{{ filename }}" />
+          <input type="hidden" name="train_grid_json" id="train_grid_json" value="" />
+          <input type="hidden" name="trains_json" id="trains_json" value="" />
+          <label><input type="checkbox" name="present" value="1" id="present-check" {% if hint and hint.get('present') %}checked{% endif %} /> Train visible (uncheck for false alarm / empty)</label>
+          <label for="train-count">How many trains to label separately</label>
+          <input type="number" id="train-count" min="1" max="{{ max_trains }}" value="1" />
+          <p class="hint" style="margin-top:0">Each train gets its own provider, model, and car count. Use the grid on the left with different colors when the detector merged two trains into one box.</p>
+          <div id="train-panels-mount">
+            {% for ti in range(max_trains) %}
+            <fieldset class="train-panel" data-train-panel="{{ ti }}" {% if ti > 0 %}hidden{% endif %}>
+              <legend>Train {{ ti + 1 }}</legend>
+              <label for="tp-{{ ti }}-provider">Provider</label>
+              <select id="tp-{{ ti }}-provider">
+                {% for p in providers %}
+                <option value="{{ p }}">{{ p | replace('_', ' ') | title }}</option>
+                {% endfor %}
+              </select>
+              <label for="tp-{{ ti }}-engine">Engine / consist model</label>
+              <input type="text" id="tp-{{ ti }}-engine" list="engine_model_list" placeholder="Datalist or custom" autocomplete="off" />
+              <label for="tp-{{ ti }}-cars">Cars visible (incl. loco if seen)</label>
+              <input type="number" id="tp-{{ ti }}-cars" min="0" max="99" placeholder="optional" />
+            </fieldset>
+            {% endfor %}
+          </div>
+          <datalist id="engine_model_list">
+            {% for m in engine_model_suggestions %}
+            <option value="{{ m }}"></option>
+            {% endfor %}
+          </datalist>
+          <label for="notes">Notes (whole image)</label>
+          <textarea id="notes" name="notes" placeholder="Direction, uncertainty, context…"></textarea>
+          <div class="actions">
+            <button type="submit" class="primary">Save &amp; next</button>
+            <button type="button" class="secondary" id="clear-grid">Clear grid</button>
+            <button type="submit" class="danger" formaction="{{ url_for('skip_label') }}" formmethod="post">Skip</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <script>
+(function () {
+  var MAX_TRAINS = {{ max_trains | int }};
+  var GRID_ROWS = 12;
+  var GRID_COLS = 16;
+  var HINT = {{ hint | tojson }};
+  var img = document.getElementById("label-img");
+  var yoloSvg = document.getElementById("yolo-svg");
+  var gridEl = document.getElementById("train-grid");
+  var hiddenGrid = document.getElementById("train_grid_json");
+  var hiddenTrains = document.getElementById("trains_json");
+  var trainCountEl = document.getElementById("train-count");
+  var brushBar = document.getElementById("brush-bar");
+  var presentCheck = document.getElementById("present-check");
+  var showGridPaint = document.getElementById("show-grid-paint");
+  var n = GRID_ROWS * GRID_COLS;
+  var assignments = new Array(n);
+  for (var z = 0; z < n; z++) assignments[z] = null;
+  var activeBrush = 1;
+  var isPainting = false;
+  var strokeBrush = 1;
+  var lastStrokeIdx = -1;
+
+  function trainCount() {
+    var v = parseInt(trainCountEl.value, 10);
+    if (isNaN(v) || v < 1) return 1;
+    return Math.min(MAX_TRAINS, v);
+  }
+
+  function syncPanelsVisibility() {
+    var tc = trainCount();
+    if (activeBrush > tc) activeBrush = tc;
+    for (var i = 0; i < MAX_TRAINS; i++) {
+      var fs = document.querySelector('[data-train-panel="' + i + '"]');
+      if (!fs) continue;
+      fs.hidden = i >= tc;
+    }
+    for (var j = 0; j < n; j++) {
+      if (assignments[j] != null && assignments[j] > tc) assignments[j] = null;
+    }
+    rebuildBrushBar();
+    applyAllCellClasses();
+    syncGridHidden();
+  }
+
+  function rebuildBrushBar() {
+    var tc = trainCount();
+    brushBar.innerHTML = "";
+    var hintSp = document.createElement("span");
+    hintSp.className = "hint";
+    hintSp.textContent = "Pick a color, then click or drag across cells:";
+    brushBar.appendChild(hintSp);
+    function addBtn(id, label, cls) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "brush-btn " + cls + (activeBrush === id ? " active" : "");
+      b.setAttribute("data-brush", String(id));
+      b.textContent = label;
+      b.addEventListener("click", function () {
+        activeBrush = id;
+        rebuildBrushBar();
+      });
+      brushBar.appendChild(b);
+    }
+    addBtn(0, "Erase", "b0");
+    for (var t = 1; t <= tc; t++) {
+      addBtn(t, "Train " + t, "b" + t);
+    }
+    var leg = document.getElementById("legend-dynamic");
+    if (leg) {
+      leg.innerHTML = '<span><i class="swatch"></i> YOLO (model)</span>';
+      for (var k = 1; k <= tc; k++) {
+        var s = document.createElement("span");
+        s.innerHTML = '<i class="swatch" style="border-color:transparent;background:var(--t' + k + ')"></i> Train ' + k;
+        leg.appendChild(s);
+      }
+    }
+  }
+
+  function syncGridHidden() {
+    var cells = [];
+    for (var i = 0; i < n; i++) cells.push(assignments[i] == null ? null : assignments[i]);
+    var any = cells.some(function (c) { return c != null; });
+    hiddenGrid.value = any ? JSON.stringify({ rows: GRID_ROWS, cols: GRID_COLS, cells: cells }) : "";
+  }
+
+  function applyPaintVisibility() {
+    if (!gridEl || !showGridPaint) return;
+    gridEl.classList.toggle("selection-hidden", !showGridPaint.checked);
+  }
+
+  function applyAllCellClasses() {
+    gridEl.querySelectorAll(".grid-cell").forEach(function (c) {
+      var idx = parseInt(c.dataset.idx, 10);
+      var t = assignments[idx];
+      c.className = "grid-cell" + (t ? " t" + t : "");
+    });
+    applyPaintVisibility();
+  }
+
+  function refreshCellClass(idx) {
+    var cell = gridEl.querySelector('.grid-cell[data-idx="' + idx + '"]');
+    if (!cell) return;
+    var t = assignments[idx];
+    cell.className = "grid-cell" + (t ? " t" + t : "");
+    applyPaintVisibility();
+  }
+
+  function applyStrokeCell(idx) {
+    if (!presentCheck.checked) return;
+    if (idx < 0 || idx >= n) return;
+    if (idx === lastStrokeIdx) return;
+    lastStrokeIdx = idx;
+    if (strokeBrush === 0) assignments[idx] = null;
+    else assignments[idx] = strokeBrush;
+    refreshCellClass(idx);
+    syncGridHidden();
+  }
+
+  function endGridStroke(ev) {
+    if (!isPainting) return;
+    isPainting = false;
+    lastStrokeIdx = -1;
+    if (ev && typeof ev.pointerId === "number") {
+      try {
+        gridEl.releasePointerCapture(ev.pointerId);
+      } catch (err) {}
+    }
+  }
+
+  function layoutOverlays() {
+    var w = img.clientWidth;
+    var h = img.clientHeight;
+    if (!w || !h) return;
+    yoloSvg.setAttribute("width", w);
+    yoloSvg.setAttribute("height", h);
+    yoloSvg.setAttribute("viewBox", "0 0 " + w + " " + h);
+    gridEl.style.width = w + "px";
+    gridEl.style.height = h + "px";
+    gridEl.style.gridTemplateColumns = "repeat(" + GRID_COLS + ", 1fr)";
+    gridEl.style.gridTemplateRows = "repeat(" + GRID_ROWS + ", 1fr)";
+    gridEl.hidden = false;
+    var nw = img.naturalWidth || w;
+    var nh = img.naturalHeight || h;
+    var sx = w / nw;
+    var sy = h / nh;
+    while (yoloSvg.firstChild) yoloSvg.removeChild(yoloSvg.firstChild);
+    if (HINT && Array.isArray(HINT.boxes)) {
+      HINT.boxes.forEach(function (b) {
+        var r = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        r.setAttribute("x", (b.x * sx).toFixed(2));
+        r.setAttribute("y", (b.y * sy).toFixed(2));
+        r.setAttribute("width", (b.w * sx).toFixed(2));
+        r.setAttribute("height", (b.h * sy).toFixed(2));
+        r.setAttribute("rx", "2");
+        var conf = typeof b.conf === "number" ? b.conf.toFixed(2) : "";
+        r.setAttribute("title", (b.label || "train") + (conf ? " " + conf : ""));
+        yoloSvg.appendChild(r);
+      });
+    }
+  }
+
+  function buildGrid() {
+    gridEl.innerHTML = "";
+    for (var i = 0; i < n; i++) {
+      var cell = document.createElement("button");
+      cell.type = "button";
+      cell.className = "grid-cell";
+      cell.dataset.idx = String(i);
+      cell.setAttribute("aria-label", "Cell " + (i + 1));
+      gridEl.appendChild(cell);
+    }
+
+    gridEl.addEventListener("pointerdown", function (ev) {
+      if (ev.button !== 0) return;
+      var cell = ev.target.closest && ev.target.closest(".grid-cell");
+      if (!cell || !gridEl.contains(cell) || !presentCheck.checked) return;
+      ev.preventDefault();
+      isPainting = true;
+      strokeBrush = activeBrush;
+      lastStrokeIdx = -1;
+      applyStrokeCell(parseInt(cell.dataset.idx, 10));
+      try {
+        gridEl.setPointerCapture(ev.pointerId);
+      } catch (err) {}
+    });
+
+    gridEl.addEventListener("pointermove", function (ev) {
+      if (!isPainting) return;
+      var el = document.elementFromPoint(ev.clientX, ev.clientY);
+      if (!el || !el.closest) return;
+      var over = el.closest(".grid-cell");
+      if (!over || !gridEl.contains(over)) return;
+      applyStrokeCell(parseInt(over.dataset.idx, 10));
+    });
+
+    gridEl.addEventListener("pointerup", endGridStroke);
+    gridEl.addEventListener("pointercancel", endGridStroke);
+    gridEl.addEventListener("lostpointercapture", function () {
+      if (isPainting) {
+        isPainting = false;
+        lastStrokeIdx = -1;
+      }
+    });
+    window.addEventListener("blur", function () {
+      if (isPainting) endGridStroke(null);
+    });
+
+    gridEl.addEventListener("click", function (ev) {
+      var cell = ev.target.closest && ev.target.closest(".grid-cell");
+      if (!cell || !gridEl.contains(cell) || !presentCheck.checked) return;
+      var idx = parseInt(cell.dataset.idx, 10);
+      if (activeBrush === 0) assignments[idx] = null;
+      else assignments[idx] = activeBrush;
+      refreshCellClass(idx);
+      syncGridHidden();
+    });
+
+    applyAllCellClasses();
+    syncGridHidden();
+  }
+
+  function syncTrainsJson() {
+    if (!presentCheck.checked) {
+      hiddenTrains.value = "";
+      return;
+    }
+    var tc = trainCount();
+    var arr = [];
+    for (var i = 0; i < tc; i++) {
+      var pv = document.getElementById("tp-" + i + "-provider");
+      var ev = document.getElementById("tp-" + i + "-engine");
+      var cv = document.getElementById("tp-" + i + "-cars");
+      var carsRaw = (cv && cv.value) || "";
+      var cars = carsRaw === "" ? null : parseInt(carsRaw, 10);
+      if (isNaN(cars)) cars = null;
+      arr.push({
+        provider: pv ? pv.value : "unknown",
+        engine_model: (ev && ev.value.trim()) ? ev.value.trim() : null,
+        num_cars: cars
+      });
+    }
+    hiddenTrains.value = JSON.stringify(arr);
+  }
+
+  document.getElementById("clear-grid").addEventListener("click", function () {
+    for (var i = 0; i < n; i++) assignments[i] = null;
+    applyAllCellClasses();
+    syncGridHidden();
+  });
+
+  trainCountEl.addEventListener("input", syncPanelsVisibility);
+  trainCountEl.addEventListener("change", syncPanelsVisibility);
+
+  function applyPresentUi() {
+    var on = presentCheck.checked;
+    trainCountEl.disabled = !on;
+    document.querySelectorAll(".train-panel").forEach(function (fs) {
+      fs.querySelectorAll("select, input").forEach(function (el) { el.disabled = !on; });
+    });
+    if (!on) {
+      hiddenTrains.value = "";
+      hiddenGrid.value = "";
+    }
+  }
+  presentCheck.addEventListener("change", applyPresentUi);
+  applyPresentUi();
+
+  document.getElementById("label-form").addEventListener("submit", function () {
+    syncGridHidden();
+    syncTrainsJson();
+  });
+
+  if (showGridPaint) {
+    showGridPaint.addEventListener("change", applyPaintVisibility);
+  }
+
+  buildGrid();
+  rebuildBrushBar();
+  applyPaintVisibility();
+  img.addEventListener("load", layoutOverlays);
+  if (img.complete) layoutOverlays();
+  window.addEventListener("resize", function () {
+    layoutOverlays();
+    applyAllCellClasses();
+  });
+
+  {% if hint and hint.get('count') %}
+  if (trainCountEl && String(trainCountEl.value) === "1") {
+    trainCountEl.placeholder = "hint: model count {{ hint.get('count') }}";
+  }
+  {% endif %}
+})();
+    </script>
+    {% endif %}
+  </main>
+</body>
+</html>

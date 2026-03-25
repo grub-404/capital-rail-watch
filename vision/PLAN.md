@@ -58,7 +58,7 @@ Incremental delivery for pretrained YOLO (train / locomotive / railcar), yes-no 
 
 ## Slice 2 — yt-dlp harness + test corpus layout
 
-**Goal:** Download segments of older streams into a standard folder tree for batch evaluation.
+**Goal:** Download segments of older streams into a standard tree for batch evaluation.
 
 **Deliverables**
 
@@ -101,45 +101,46 @@ Incremental delivery for pretrained YOLO (train / locomotive / railcar), yes-no 
 
 ---
 
-## Slice 4 — HTTP API + optional bridge from Flask
+## Slice 5 — Label webapp (MVP)
 
-**Goal:** Same logic as CLI, callable over HTTP for OBS, browser, or a poller.
+**Goal:** Railfans review screenshots and add **human labels** beyond raw detector output: train visible, **provider** (Amtrak / VRE / MARC / …), **engine model** (free text), **number of cars**, notes. Optional model hints from sibling `.json` sidecars.
 
 **Deliverables**
 
-- Small **FastAPI** service *or* a few routes on the existing Flask app (prefer separate process if it keeps torch isolated from `backend/server.py`).
+- Flask app: `python -m vision.label_app` — browse next unlabeled PNG from `VISION_SCREENSHOT_DIR`, preview, submit or skip.
+- SQLite `db/vision_labels.db` (or `VISION_LABEL_DB`): one row per file; export **`GET /label/export.jsonl`** (non-skipped rows) for training.
+
+**Testing**
+
+- Temp dir with PNGs → submit → DB row → export line; skip excluded from export; path traversal blocked on `/media/…`.
+
+**Exit criteria**
+
+- Real labeling session on screenshots from slice 3.
+
+**Status:** Implemented — `vision/label_app.py`, `vision/label_db.py`, `templates/vision_label/index.html`, `tests/vision/test_label_app.py`.
+
+---
+
+## Slice 4 (deferred) — HTTP API for stream / OBS integration
+
+**When:** After labeling corpus exists and you want **live** frames from OBS or a browser without a separate script.
+
+**Goal:** Same inference as CLI, callable over HTTP for OBS helpers, browser, or a poller.
+
+**Deliverables**
+
+- Small **FastAPI** service *or* a few routes on a dedicated Flask app (keep **torch** off `backend/server.py` unless you accept the weight).
 - `POST /vision/infer` (multipart image or base64 JSON) → detection JSON.
 - Optional: infer + save screenshot in one call.
 
 **Testing**
 
 - `pytest` with `httpx` / `requests`: upload test image → 200 + schema match.
-- Optional: max payload / timeout behavior.
 
 **Exit criteria**
 
 - Overlay or a standalone watcher can integrate without tangling ingest code.
-
----
-
-## Slice 5 — Minimal label webapp (MVP)
-
-**Goal:** Railfans mark train yes/no, number of trains, and optional notes; accounts optional at first.
-
-**Deliverables**
-
-- Simple UI + backend: list unlabeled screenshots (from directory or DB); show image; submit `present`, `count`, notes.
-- Store labels in SQLite or CSV keyed by `screenshot_id` or file hash.
-- Export: `labels.jsonl` for future training.
-
-**Testing**
-
-- Backend: temp dir with fake images → list → label → export; assert contents.
-- Optional E2E (Playwright): one label flow → row in DB.
-
-**Exit criteria**
-
-- Real labeling session possible on screenshots from slice 3.
 
 ---
 
@@ -172,6 +173,69 @@ Incremental delivery for pretrained YOLO (train / locomotive / railcar), yes-no 
 
 ---
 
+## Deployment / infra addendum
+
+### Storage: Cloudflare R2 for screenshots + exports
+
+**Goal:** move screenshot artifacts off local disk for durability and shared labeling.
+
+**Plan**
+
+- Keep local write path for dev.
+- Add optional R2 upload path for:
+  - screenshot PNG
+  - sidecar JSON
+  - exported labels snapshots (`labels.jsonl`)
+- Store object key + checksum in metadata so jobs are resumable.
+- Prefer private buckets + signed URLs for reads in production.
+
+**Suggested env vars (future)**
+
+- `VISION_R2_ENABLED`
+- `VISION_R2_ENDPOINT`
+- `VISION_R2_BUCKET`
+- `VISION_R2_ACCESS_KEY_ID`
+- `VISION_R2_SECRET_ACCESS_KEY`
+- `VISION_R2_PUBLIC_BASE_URL` (optional)
+
+### Auth: Google sign-in for label app
+
+**Goal:** lightweight access control and labeler identity.
+
+Rationale: users are already YouTube-adjacent, so Google auth is a natural login path.
+
+**Plan**
+
+- Add login/logout and required session for label routes.
+- Use Google OIDC (`sub`, `email`, `name`) as user identity.
+- Store `labeled_by` / `user_id` on each label row (new DB column + migration).
+- Optional role gates:
+  - admin: exports, moderation, user management
+  - labeler: submit/skip only
+
+### Hosting options (including GitHub Pages)
+
+**Short answer:** GitHub Pages alone is **not** enough for this app.
+
+Why:
+
+- current labeler is a server-rendered Flask app with DB writes and media routes
+- GitHub Pages is static hosting only (no Flask runtime, no writable server DB)
+
+What can work:
+
+- Flask app on a small host (Railway, Render, Fly.io, Cloud Run, ECS/Lightsail, etc.)
+- SQLite for small private deployments, or Postgres if multi-user scale/auditing matters
+- Static assets can still be CDN-hosted; app/API remains on a backend host
+
+Possible split architecture:
+
+- Frontend on GitHub Pages (or Cloudflare Pages)
+- Backend API (auth + label writes + exports) on a real server runtime
+- Screenshots/JSON in R2
+
+---
+
 ## Cross-cutting test matrix
 
 | Concern | What to verify |
@@ -180,14 +244,15 @@ Incremental delivery for pretrained YOLO (train / locomotive / railcar), yes-no 
 | Thresholds | Boundary confidence values flip `present` as expected. |
 | Multi-train | Overlapping boxes: document dedupe or no-dedupe rule; test it. |
 | Disk I/O | Permissions; graceful behavior when disk is full. |
-| Public API | Max upload size; content-type checks if exposed. |
+| Public API | Max payload / content-type checks if exposed (slice 4). |
 
 ---
 
 ## Milestones
 
 - **Milestone A (internal):** Slices 0–3 + tests — generate screenshots from streams or clips.
-- **Milestone B (community):** Slices 4–5 + tests — external labelers; exportable dataset.
+- **Milestone B (community):** Slice 5 + tests — railfans label screenshots; exportable `labels.jsonl`.
+- **Milestone C (stream):** Slice 4 — live inference from OBS / helpers.
 
 ---
 
@@ -198,11 +263,11 @@ Incremental delivery for pretrained YOLO (train / locomotive / railcar), yes-no 
     ↓
     3       (screenshots)
     ↓
-    4       (HTTP)
+    5       (labeling)     ← current focus for dataset
     ↓
-    5       (labeling)
+    6       (batch eval; can use labels.jsonl)
     ↓
-    6       (batch eval)
+    4       (HTTP — when integrating with stream)
     ↓
     7       (gamification, optional)
 ```
