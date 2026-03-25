@@ -52,6 +52,8 @@ Incremental delivery for pretrained YOLO (train / locomotive / railcar), yes-no 
 
 - Reproducible command developers can run locally; usage documented in module docstring or README.
 
+**Status:** Implemented — `vision/yolo_infer.py`, `vision/infer.py` (`python -m vision.infer`), `ultralytics` in `requirements-dev.txt`, `tests/vision/test_infer.py`, `vision/test_stills/`.
+
 ---
 
 ## Slice 2 — yt-dlp harness + test corpus layout

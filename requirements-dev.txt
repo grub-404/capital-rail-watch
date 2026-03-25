@@ -1,2 +1,4 @@
 # Dev / CI — install alongside backend/requirements.txt
 pytest>=8.0
+# Vision slice 1+ (YOLO inference & tests; pulls PyTorch)
+ultralytics>=8.0

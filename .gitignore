@@ -1,5 +1,7 @@
 .venv/
 __pycache__/
+vision_infer_out/
+runs/
 *.pyc
 *.db
 *.sqlite3
@@ -10,4 +12,8 @@ node_modules/
 *.jpg
 *.jpeg
 *.gif
+# Commit vision regression stills
+!vision/test_stills/**/*.png
+!vision/test_stills/**/*.jpg
+!vision/test_stills/**/*.jpeg
 !.env.example

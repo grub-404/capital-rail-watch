@@ -21,7 +21,7 @@ source .venv/bin/activate    # Mac/Linux — Windows: .venv\Scripts\activate
 python -m pip install -r backend/requirements.txt
 ```
 
-To run **unit tests** (including `tests/vision/`), also install dev dependencies:
+To run **unit tests** (including `tests/vision/` and YOLO inference tests), also install dev dependencies (adds **PyTorch** + Ultralytics; first test run may download `yolov8n.pt`):
 
 ```bash
 python -m pip install -r requirements-dev.txt
@@ -92,21 +92,38 @@ db/
   schema.sql         # SQLite schema for train logging
 vision/
   PLAN.md            # Phased plan: YOLO, screenshots, yt-dlp corpus, labeling app
-  schema + config    # Detection JSON contract and env-driven paths (slice 0)
+  infer.py           # CLI: python -m vision.infer (slice 1)
+  yolo_infer.py      # Ultralytics wrapper → DetectionResult
+  test_stills/       # Regression images (with_train / without_train)
 ```
 
 ### Vision pipeline (experimental)
 
 The **`vision/`** package will hold pretrained YOLO inference (train / locomotive / railcar), a **yes/no + box + count** payload, **screenshot capture** with JSON sidecars, **yt-dlp**-based test clips, and later a **crowd labeling** webapp. Roadmap and slices: **[vision/PLAN.md](vision/PLAN.md)**.
 
-**Slice 0 (current)** defines the shared contract only—no model weights required:
+**Slice 0** — shared JSON contract and env-driven paths (no PyTorch required for schema-only tests):
 
 - **`vision/schema.py`** — `DetectionResult` / `DetectionBox`; `present`, `count`, `boxes[]`, `frame_id`, `source`, `timestamp_utc`, `version`.
 - **`vision/labels.py`** — which YOLO class names count as one “train” for aggregation.
 - **`vision/config.py`** — reads optional **`VISION_*`** and **`YTDLP_OUTPUT_DIR`** from the repo-root `.env` (see `.env.example`).
 - **`vision/fixtures/detection_example.json`** — example payload for tests and API docs.
 
-Run vision unit tests from the repo root:
+**Slice 1** — pretrained **Ultralytics YOLO** (default **`yolov8n.pt`**, COCO includes a **train** class). Install dev deps (pulls PyTorch), then:
+
+```bash
+python -m vision.infer --input path/to/screenshot.png
+python -m vision.infer --input path/to/clips/ --out-dir ./vision_infer_out
+python -m vision.infer --input path/to/video.mp4 --out-dir ./out   # writes results.jsonl per frame
+```
+
+- **Image** (single file): writes **`result.json`** (`DetectionResult`) under `--out-dir`.
+- **Directory** of images: writes **`{stem}_result.json`** per file.
+- **Video**: writes **`results.jsonl`** (one JSON object per line per frame).
+- **`--annotate`**: saves annotated JPEG next to JSON (images only).
+
+Regression stills live under **`vision/test_stills/`**. If COCO ever mis-fires on a true negative, you can add **`vision/test_stills/expectations.json`** with per-file `max_train_detections` under `without_train` (see `tests/vision/test_infer.py`).
+
+Run vision tests from the repo root (first run may download `yolov8n.pt`):
 
 ```bash
 python -m pytest tests/ -q
