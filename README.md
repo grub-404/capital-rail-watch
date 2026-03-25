@@ -128,7 +128,7 @@ python -m vision.infer --input data/clips/z7KgEnxJo_s/ --screenshots --sample-in
 - **Directory** of images: writes **`{stem}_result.json`** per file.
 - **Video** / **folder of `.mp4`**: writes **`*_results.jsonl`** — one JSON line per **sampled** frame (not every decoded frame by default).
 - **Time sampling**: default **`VISION_VIDEO_SAMPLE_INTERVAL_SEC=1.0`** → Ultralytics **`vid_stride ≈ round(fps × interval)`**. Set **`0`** or **`--sample-interval-sec 0`** for every frame (slow).
-- **Slice 3 — Screenshots**: **`--screenshots`** saves **`{timestamp}_{source}_{frame}.png`** + matching **`.json`** under **`VISION_SCREENSHOT_DIR`** when **`present`**, throttled by **`VISION_SCREENSHOT_MIN_INTERVAL_SEC`** (default 10s). Override with **`--screenshot-dir`** / **`--screenshot-min-interval-sec`**.
+- **Slice 3 — Screenshots**: **`--screenshots`** saves **`{timestamp}_{source}_vidt{ms}ms_f{frame}.png`** + **`.json`** when **`present`**. Spacing is primarily **`VISION_SCREENSHOT_MIN_VIDEO_SEC`** (default **6**): at least that many **seconds along the same mp4’s timeline** between saves, so shots spread across a pass instead of bunching at frame 0. Optional **`VISION_SCREENSHOT_MIN_INTERVAL_SEC`** (default **0**) adds a **wall-clock** cap per clip. CLI: **`--screenshot-min-video-sec`**, **`--screenshot-min-interval-sec`**.
 - **`--annotate`**: saves annotated JPEG next to JSON (images only).
 
 **Slice 2** — **yt-dlp** clip harness. **`data/clips/manifest.csv`** lists `clip_name`, `video_id`, `url`, `section` (yt-dlp `--download-sections`, e.g. `*0:00-2:00`), and `notes`. Downloads go to **`data/clips/{video_id}/{clip_name}.mp4`** (or **`YTDLP_OUTPUT_DIR`**). Live watch URLs may fail until a VOD exists—update the CSV when the replay is up.

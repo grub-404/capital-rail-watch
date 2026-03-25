@@ -12,7 +12,7 @@ Usage::
     python -m vision.infer --input path/to/video.mp4 --out-dir ./out
     python -m vision.infer --input path/to/folder_of_mp4s/ --sample-interval-sec 2 --screenshots
 
-Environment: ``VISION_*``, ``VISION_VIDEO_SAMPLE_INTERVAL_SEC``, ``VISION_SCREENSHOT_*`` (see ``vision.config``).
+Environment: ``VISION_*``, sampling and ``VISION_SCREENSHOT_MIN_VIDEO_SEC`` / wall interval (see ``vision.config``).
 """
 
 from __future__ import annotations
@@ -34,6 +34,7 @@ from vision.yolo_infer import (
     list_image_paths,
     list_video_paths,
     load_yolo_model,
+    video_fps,
 )
 
 
@@ -70,6 +71,7 @@ def _infer_one_video(
 ) -> tuple[int, int]:
     """Run sampled inference; return (lines_written, screenshots_saved)."""
     source_slug = video_path.stem
+    fps = float(video_fps(video_path))
     n = 0
     n_shot = 0
     with open(jsonl_path, "w", encoding="utf-8") as f:
@@ -88,8 +90,13 @@ def _infer_one_video(
             f.write("\n")
             n += 1
             if shots is not None:
+                video_t = float(fi) / fps if fps > 1e-6 else 0.0
                 pair = shots.maybe_save(
-                    bgr, res, source_slug=source_slug, frame_index=fi
+                    bgr,
+                    res,
+                    source_slug=source_slug,
+                    frame_index=fi,
+                    video_time_sec=video_t,
                 )
                 if pair:
                     n_shot += 1
@@ -158,8 +165,18 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         metavar="SEC",
         help=(
-            "Min real time between screenshots while train visible (default: "
-            "VISION_SCREENSHOT_MIN_INTERVAL_SEC)"
+            "Optional min **wall-clock** seconds between screenshots per clip (default: "
+            "VISION_SCREENSHOT_MIN_INTERVAL_SEC, often 0)"
+        ),
+    )
+    parser.add_argument(
+        "--screenshot-min-video-sec",
+        type=float,
+        default=None,
+        metavar="SEC",
+        help=(
+            "Min **video timeline** seconds between screenshots in the same file (default: "
+            "VISION_SCREENSHOT_MIN_VIDEO_SEC, often ~6). Spreads shots along a pass."
         ),
     )
     args = parser.parse_args(argv)
@@ -174,14 +191,23 @@ def main(argv: list[str] | None = None) -> int:
         else float(cfg.video_sample_interval_sec)
     )
     shot_dir = (args.screenshot_dir or cfg.screenshot_dir).expanduser().resolve()
-    shot_min = (
+    shot_wall = (
         float(args.screenshot_min_interval_sec)
         if args.screenshot_min_interval_sec is not None
         else float(cfg.screenshot_min_interval_sec)
     )
+    shot_video = (
+        float(args.screenshot_min_video_sec)
+        if args.screenshot_min_video_sec is not None
+        else float(cfg.screenshot_min_video_sec)
+    )
     shots: ScreenshotWriter | None = None
     if args.screenshots:
-        shots = ScreenshotWriter(shot_dir, min_interval_sec=shot_min)
+        shots = ScreenshotWriter(
+            shot_dir,
+            min_video_sec=shot_video,
+            min_wall_sec=shot_wall,
+        )
 
     if not inp.exists():
         print(f"[vision.infer] not found: {inp}", file=sys.stderr)
@@ -247,7 +273,13 @@ def main(argv: list[str] | None = None) -> int:
 
                 bgr = cv2.imread(str(p))
                 if bgr is not None:
-                    if shots.maybe_save(bgr, res, source_slug=stem, frame_index=0):
+                    if shots.maybe_save(
+                        bgr,
+                        res,
+                        source_slug=stem,
+                        frame_index=0,
+                        video_time_sec=0.0,
+                    ):
                         total_shots += 1
         print(f"[vision.infer] wrote outputs under {out_dir}")
         if args.screenshots:
@@ -267,7 +299,11 @@ def main(argv: list[str] | None = None) -> int:
 
             bgr = cv2.imread(str(inp))
             if bgr is not None and shots.maybe_save(
-                bgr, res, source_slug=inp.stem, frame_index=0
+                bgr,
+                res,
+                source_slug=inp.stem,
+                frame_index=0,
+                video_time_sec=0.0,
             ):
                 ns = 1
         print(f"[vision.infer] wrote {out_dir / 'result.json'}")

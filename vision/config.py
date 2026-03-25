@@ -20,7 +20,9 @@ class VisionConfig:
     ytdlp_output_dir: Path
     # Video: approximate time between YOLO runs (uses fps × interval → Ultralytics vid_stride).
     video_sample_interval_sec: float
-    # Min real time between screenshot PNG+JSON writes while train is present.
+    # Min seconds along the **same video file** between screenshots (spread across a pass).
+    screenshot_min_video_sec: float
+    # Optional wall-clock cap per video stem (0 = off). Use video_sec for timeline spread.
     screenshot_min_interval_sec: float
 
 
@@ -60,5 +62,6 @@ def load_vision_config(*, project_root: Path | None = None) -> VisionConfig:
         screenshot_dir=_env_path("VISION_SCREENSHOT_DIR", root / "data" / "vision_screenshots"),
         ytdlp_output_dir=_env_path("YTDLP_OUTPUT_DIR", root / "data" / "clips"),
         video_sample_interval_sec=_env_float("VISION_VIDEO_SAMPLE_INTERVAL_SEC", 1.0),
-        screenshot_min_interval_sec=_env_float("VISION_SCREENSHOT_MIN_INTERVAL_SEC", 10.0),
+        screenshot_min_video_sec=_env_float("VISION_SCREENSHOT_MIN_VIDEO_SEC", 6.0),
+        screenshot_min_interval_sec=_env_float("VISION_SCREENSHOT_MIN_INTERVAL_SEC", 0.0),
     )

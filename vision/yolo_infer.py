@@ -112,7 +112,7 @@ def infer_image(
     )
 
 
-def _video_fps(path: Path) -> float:
+def video_fps(path: Path | str) -> float:
     import cv2
 
     cap = cv2.VideoCapture(str(path))
@@ -142,7 +142,7 @@ def infer_video_frames(
     ``orig_bgr`` is ``Results.orig_img`` (numpy BGR) or ``None`` if missing.
     """
     path = Path(video_path).resolve()
-    fps = _video_fps(path)
+    fps = video_fps(path)
     if sample_interval_sec and sample_interval_sec > 0:
         stride = max(1, int(round(fps * float(sample_interval_sec))))
     else:
