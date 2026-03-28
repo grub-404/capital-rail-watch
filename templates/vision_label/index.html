@@ -1,0 +1,1559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Label screenshot — Capital Rail Watch</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --card: #1a2332;
+      --text: #e7ecf3;
+      --muted: #8b98a5;
+      --accent: #3d8bfd;
+      --border: #2d3a4d;
+      --yolo: #ffcc00;
+      --t1: rgba(61, 139, 253, 0.45);
+      --t2: rgba(46, 204, 113, 0.45);
+      --t3: rgba(241, 196, 15, 0.45);
+      --t4: rgba(231, 76, 60, 0.45);
+      --t5: rgba(155, 89, 182, 0.45);
+      --t6: rgba(26, 188, 156, 0.45);
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+    header {
+      padding: 0.85rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 1rem;
+    }
+    header h1 { font-size: 1.1rem; font-weight: 600; margin: 0; }
+    .stats { color: var(--muted); font-size: 0.9rem; }
+    main { margin: 0; }
+    main.has-label .label-work {
+      display: grid;
+      grid-template-columns: minmax(480px, 1fr) minmax(360px, 480px);
+      gap: 1.25rem;
+      max-width: 1680px;
+      margin: 0 auto;
+      padding: 1rem 1.5rem 2rem;
+      align-items: start;
+    }
+    @media (max-width: 1024px) {
+      main.has-label .label-work { grid-template-columns: 1fr; }
+    }
+    .label-col-preview { min-width: 0; }
+    .label-col-form { min-width: 0; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.1rem 1.25rem;
+      margin-bottom: 0;
+    }
+    .preview {
+      text-align: center;
+      background: #000;
+      border-radius: 8px;
+      overflow: hidden;
+      padding: 0.65rem;
+    }
+    .image-stack {
+      position: relative;
+      display: inline-block;
+      max-width: 100%;
+      vertical-align: middle;
+    }
+    .image-stack img {
+      display: block;
+      max-width: 100%;
+      max-height: min(88vh, 960px);
+      height: auto;
+      vertical-align: middle;
+    }
+    .overlay-layer {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+    .overlay-layer.grid-layer {
+      display: grid;
+      pointer-events: auto;
+      z-index: 2;
+      touch-action: none;
+      user-select: none;
+    }
+    .grid-cell {
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: transparent;
+      cursor: pointer;
+      padding: 0;
+      min-height: 0;
+      transition: background 0.08s ease;
+    }
+    .grid-cell:hover { filter: brightness(1.15); }
+    .grid-cell.t1 { background: var(--t1); }
+    .grid-cell.t2 { background: var(--t2); }
+    .grid-cell.t3 { background: var(--t3); }
+    .grid-cell.t4 { background: var(--t4); }
+    .grid-cell.t5 { background: var(--t5); }
+    .grid-cell.t6 { background: var(--t6); }
+    #train-grid.selection-hidden .grid-cell.t1,
+    #train-grid.selection-hidden .grid-cell.t2,
+    #train-grid.selection-hidden .grid-cell.t3,
+    #train-grid.selection-hidden .grid-cell.t4,
+    #train-grid.selection-hidden .grid-cell.t5,
+    #train-grid.selection-hidden .grid-cell.t6 {
+      background: transparent !important;
+    }
+    #train-grid.selection-hidden .grid-cell {
+      border-color: transparent;
+    }
+    #train-grid.selection-hidden .grid-cell:hover {
+      filter: none;
+      background: rgba(255, 255, 255, 0.07) !important;
+    }
+    .overlay-toggles {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      gap: 0.75rem;
+      margin-top: 0.5rem;
+    }
+    .overlay-toggles label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin: 0;
+      font-weight: 500;
+      font-size: 0.85rem;
+      color: var(--muted);
+      cursor: pointer;
+      user-select: none;
+    }
+    .overlay-toggles input { width: auto; accent-color: var(--accent); }
+    svg.yolo-svg {
+      overflow: visible;
+      z-index: 1;
+    }
+    svg.yolo-svg rect {
+      fill: none;
+      stroke: var(--yolo);
+      stroke-width: 2;
+      vector-effect: non-scaling-stroke;
+    }
+    .brush-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.4rem;
+      margin-top: 0.65rem;
+      justify-content: center;
+    }
+    .brush-bar .hint { margin: 0; font-size: 0.8rem; color: var(--muted); }
+    .brush-btn {
+      padding: 0.35rem 0.65rem;
+      border-radius: 6px;
+      border: 2px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+    .brush-btn.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+    .brush-btn.b0 { border-style: dashed; }
+    .brush-btn.b1 { background: var(--t1); border-color: #5a9eff; }
+    .brush-btn.b2 { background: var(--t2); border-color: #2ecc71; }
+    .brush-btn.b3 { background: var(--t3); border-color: #f1c40f; }
+    .brush-btn.b4 { background: var(--t4); border-color: #e74c3c; }
+    .brush-btn.b5 { background: var(--t5); border-color: #9b59b6; }
+    .brush-btn.b6 { background: var(--t6); border-color: #1abc9c; }
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem 1rem;
+      justify-content: center;
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 0.5rem;
+    }
+    .legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
+    .swatch { width: 14px; height: 10px; border-radius: 2px; border: 2px solid var(--yolo); }
+    .hint {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-top: 0.65rem;
+    }
+    label { display: block; margin: 0.65rem 0 0.2rem; font-weight: 500; }
+    input[type="text"], input[type="number"], select, textarea {
+      width: 100%;
+      padding: 0.45rem 0.6rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 0.95rem;
+    }
+    textarea { min-height: 3.5rem; }
+    .train-panel {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem 1rem 1rem;
+      margin-top: 0.75rem;
+      background: rgba(0, 0, 0, 0.2);
+    }
+    .train-panel.is-active {
+      border-color: rgba(61, 139, 253, 0.85);
+      box-shadow: 0 0 0 1px rgba(61, 139, 253, 0.45);
+    }
+    .train-panel legend {
+      font-weight: 600;
+      padding: 0 0.35rem;
+    }
+    .train-panel[hidden] { display: none !important; }
+    .train-panel .mini-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+      margin: 0.3rem 0 0.6rem;
+    }
+    .train-panel .mini-row .mini-btn {
+      padding: 0.25rem 0.55rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--muted);
+      font-size: 0.78rem;
+      cursor: pointer;
+    }
+    .train-panel .cars-stepper {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 0.4rem;
+      align-items: center;
+    }
+    .train-panel .cars-stepper .step {
+      padding: 0.25rem 0.55rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 0.85rem;
+      cursor: pointer;
+      line-height: 1.2;
+    }
+    .row { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin-top: 0.5rem; }
+    .actions { display: flex; flex-wrap: wrap; gap: 0.65rem; margin-top: 1.1rem; }
+    button.primary, .btn.primary {
+      background: var(--accent);
+      color: #fff;
+      padding: 0.55rem 1.1rem;
+      border-radius: 6px;
+      border: none;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+    button.secondary {
+      background: var(--border);
+      color: var(--text);
+      padding: 0.55rem 1rem;
+      border-radius: 6px;
+      border: none;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+    button.danger {
+      background: #5c2d2d;
+      color: #f5d4d4;
+      padding: 0.55rem 1rem;
+      border-radius: 6px;
+      border: none;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+    .btn {
+      padding: 0.55rem 1.1rem;
+      border-radius: 6px;
+      text-decoration: none;
+      display: inline-block;
+      font-size: 0.95rem;
+    }
+    .empty { color: var(--muted); padding: 2rem; text-align: center; max-width: 720px; margin: 0 auto; }
+    code { font-size: 0.85em; background: var(--bg); padding: 0.15em 0.4em; border-radius: 4px; }
+    .form-scroll { max-height: min(88vh, 960px); overflow-y: auto; padding-right: 0.25rem; }
+    .mask-canvas {
+      z-index: 3;
+      pointer-events: auto;
+      touch-action: none;
+      user-select: none;
+      cursor: crosshair;
+    }
+    .mask-canvas.selection-hidden { opacity: 0.12; }
+    .region-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 0.65rem 1rem;
+      margin-top: 0.5rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .region-toolbar label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin: 0;
+      font-weight: 500;
+    }
+    .region-toolbar input[type="range"] { width: 7rem; max-width: 40vw; }
+    .region-toolbar code { font-size: 0.78rem; color: var(--muted); }
+    #assist-status { font-size: 0.78rem; color: var(--muted); }
+    .region-toolbar .dimmed { opacity: 0.42; filter: saturate(0.15); }
+    .region-toolbar input:disabled,
+    .region-toolbar button:disabled {
+      opacity: 0.42;
+      cursor: not-allowed;
+    }
+    .spatial-mode-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 1rem;
+      margin-top: 0.45rem;
+    }
+    .spatial-mode-row label { margin: 0; font-size: 0.85rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Vision labels</h1>
+    <span class="stats">{{ pending }} pending · {{ labeled }} done</span>
+    <a class="btn secondary" href="{{ url_for('export_labels') }}" style="margin-left:auto">Download labels.jsonl</a>
+  </header>
+  <main class="{% if filename %}has-label{% endif %}">
+    {% if not filename %}
+    <div class="card empty">
+      <p>No unlabeled screenshots in <code>{{ screenshot_dir }}</code>.</p>
+      <p class="hint">Run <code>python -m vision.infer … --screenshots</code> first, or set <code>VISION_SCREENSHOT_DIR</code>.</p>
+    </div>
+    {% else %}
+    <div class="label-work">
+      <div class="label-col-preview">
+        <div class="card preview">
+          <div class="image-stack" id="image-stack">
+            <img id="label-img" src="{{ url_for('serve_screenshot', name=filename) }}" alt="Screenshot" crossorigin="anonymous" />
+            <svg class="overlay-layer yolo-svg" id="yolo-svg" aria-hidden="true"></svg>
+            <canvas class="overlay-layer mask-canvas" id="mask-canvas" hidden></canvas>
+            <div class="overlay-layer grid-layer" id="train-grid" hidden></div>
+          </div>
+          <div class="spatial-mode-row" id="spatial-mode-row">
+            <label><input type="radio" name="spatial-mode" value="grid" id="mode-grid" checked /> Coarse grid</label>
+            <label><input type="radio" name="spatial-mode" value="region" id="mode-region" /> Region grow + brush</label>
+          </div>
+          <div class="brush-bar" id="brush-bar">
+            <span class="hint">Pick a train (or Erase), then use the overlay.</span>
+          </div>
+          <div class="region-toolbar" id="region-controls" hidden>
+            <span class="hint" style="margin:0">Region mode:</span>
+            <button type="button" class="brush-btn active" id="tool-grow">Grow (click)</button>
+            <button type="button" class="brush-btn" id="tool-brush">Brush (drag)</button>
+            <button type="button" class="brush-btn" id="tool-sam" title="Click-to-segment using SAM (runs locally)">SAM (click)</button>
+            <label for="grow-threshold">Grow sensitivity</label>
+            <input type="range" id="grow-threshold" min="2" max="35" value="12" />
+            <label for="grow-maxpx">Max px</label>
+            <input type="range" id="grow-maxpx" min="500" max="120000" step="500" value="25000" />
+            <label><input type="checkbox" id="grow-barrier" checked /> Barrier at existing paint</label>
+            <span class="hint" style="flex-basis:100%;margin:0.35rem 0 0">Assist maps (optional): <code>python -m vision.label_assist_preprocess</code> on the screenshot directory.</span>
+            <span id="assist-status" style="flex-basis:100%;margin:0">Assist: —</span>
+            <label><input type="checkbox" id="assist-gate-fg" {% if assist.hasFg %}checked{% endif %} {% if not assist.hasFg %}disabled{% endif %} /> Gate grow with FG</label>
+            <label for="assist-fg-min">FG min</label>
+            <input type="range" id="assist-fg-min" min="0" max="255" value="48" title="Minimum FG map value to allow grow" />
+            <label><input type="checkbox" id="assist-gate-edge" {% if assist.hasEdge %}checked{% endif %} {% if not assist.hasEdge %}disabled{% endif %} /> Block at edges</label>
+            <label for="assist-edge-cross">Edge cross</label>
+            <input type="range" id="assist-edge-cross" min="0" max="255" value="160" title="Block 4-neighbor step if max(edge) ≥ this" />
+            <label for="brush-radius">Brush radius</label>
+            <input type="range" id="brush-radius" min="1" max="14" value="5" />
+            <button type="button" class="brush-btn" id="undo-btn" title="Undo (Ctrl/Cmd+Z)">Undo</button>
+            <button type="button" class="brush-btn" id="redo-btn" title="Redo (Ctrl/Cmd+Y / Shift+Ctrl/Cmd+Z)">Redo</button>
+          </div>
+          <p class="hint" id="spatial-hint-grid" style="margin-top:0.45rem;margin-bottom:0">Grid: each cell is <strong>one</strong> train only. If two trains share a cell, pick the dominant one and note it. If they share one YOLO box but span different cells, use two colors.</p>
+          <p class="hint" id="spatial-hint-region" style="margin-top:0.45rem;margin-bottom:0;display:none"><strong>Grow:</strong> click a point on a train to fill a similarly-colored region (LAB distance). Optional <strong>FG</strong> and <strong>edge</strong> gates (from offline preprocess) reduce leaking across background and boundaries. <strong>Brush:</strong> drag to paint or erase. Tune sensitivity if the grow leaks or stops early.</p>
+          <div class="legend" id="legend-dynamic">
+            <span><i class="swatch"></i> YOLO (model)</span>
+          </div>
+          <div class="overlay-toggles">
+            <label><input type="checkbox" id="show-spatial-paint" checked /> Show paint on image</label>
+            <label><input type="checkbox" id="show-yolo" checked /> Show YOLO boxes</label>
+          </div>
+          <p class="hint" style="margin-bottom:0">{{ filename }}</p>
+          {% if hint %}
+          <p class="hint" style="margin-top:0.35rem">Model hint: present={{ hint.get('present') }}, count={{ hint.get('count') }}</p>
+          {% endif %}
+        </div>
+      </div>
+      <div class="label-col-form">
+        <form class="card form-scroll" method="post" action="{{ url_for('submit_label') }}" id="label-form">
+          <input type="hidden" name="filename" value="{{ filename }}" />
+          <input type="hidden" name="train_grid_json" id="train_grid_json" value="" />
+          <input type="hidden" name="train_mask_json" id="train_mask_json" value="" />
+          <input type="hidden" name="trains_json" id="trains_json" value="" />
+          <label><input type="checkbox" name="present" value="1" id="present-check" {% if hint and hint.get('present') %}checked{% endif %} /> Train visible (uncheck for false alarm / empty)</label>
+          <label for="train-count">How many trains to label separately</label>
+          <input type="number" id="train-count" min="1" max="{{ max_trains }}" value="1" />
+          <p class="hint" style="margin-top:0">Each train gets its own provider, model, and car count. Use the spatial overlay when the detector merged two trains or missed a split.</p>
+          <div id="train-panels-mount">
+            {% for ti in range(max_trains) %}
+            <fieldset class="train-panel" data-train-panel="{{ ti }}" {% if ti > 0 %}hidden{% endif %}>
+              <legend>Train {{ ti + 1 }}</legend>
+              {% if ti > 0 %}
+              <div class="mini-row">
+                <button type="button" class="mini-btn" data-copy-from="0" data-copy-to="{{ ti }}" title="Copy provider/engine/cars from Train 1">
+                  Copy from Train 1
+                </button>
+              </div>
+              {% endif %}
+              <label for="tp-{{ ti }}-provider">Provider</label>
+              <select id="tp-{{ ti }}-provider">
+                {% for p in providers %}
+                <option value="{{ p }}">{{ p | replace('_', ' ') | title }}</option>
+                {% endfor %}
+              </select>
+              <label for="tp-{{ ti }}-engine">Engine / consist model</label>
+              <input type="text" id="tp-{{ ti }}-engine" list="engine_model_list" placeholder="Datalist or custom" autocomplete="off" />
+              <label for="tp-{{ ti }}-cars">Cars visible (incl. loco if seen)</label>
+              <div class="cars-stepper">
+                <input type="number" id="tp-{{ ti }}-cars" min="0" max="99" placeholder="optional" />
+                <button type="button" class="step" data-step-cars="-1" data-train="{{ ti }}" title="Cars -1">−</button>
+                <button type="button" class="step" data-step-cars="1" data-train="{{ ti }}" title="Cars +1">+</button>
+              </div>
+            </fieldset>
+            {% endfor %}
+          </div>
+          <datalist id="engine_model_list">
+            {% for m in engine_model_suggestions %}
+            <option value="{{ m }}"></option>
+            {% endfor %}
+          </datalist>
+          <label for="notes">Notes (whole image)</label>
+          <textarea id="notes" name="notes" placeholder="Direction, uncertainty, context…"></textarea>
+          <div class="actions">
+            <button type="submit" class="primary">Save &amp; next</button>
+            <button type="button" class="secondary" id="clear-grid">Clear overlay</button>
+            <button type="submit" class="danger" formaction="{{ url_for('skip_label') }}" formmethod="post">Skip</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <script>
+(function () {
+  var MAX_TRAINS = {{ max_trains | int }};
+  var GRID_ROWS = 12;
+  var GRID_COLS = 16;
+  var HINT = {{ hint | tojson }};
+  var ASSIST = {{ assist | tojson }};
+  var img = document.getElementById("label-img");
+  var yoloSvg = document.getElementById("yolo-svg");
+  var gridEl = document.getElementById("train-grid");
+  var maskCanvas = document.getElementById("mask-canvas");
+  var hiddenGrid = document.getElementById("train_grid_json");
+  var hiddenMask = document.getElementById("train_mask_json");
+  var hiddenTrains = document.getElementById("trains_json");
+  var trainCountEl = document.getElementById("train-count");
+  var brushBar = document.getElementById("brush-bar");
+  var presentCheck = document.getElementById("present-check");
+  var showSpatialPaint = document.getElementById("show-spatial-paint");
+  var showYolo = document.getElementById("show-yolo");
+  var regionControls = document.getElementById("region-controls");
+  var toolGrowBtn = document.getElementById("tool-grow");
+  var toolBrushBtn = document.getElementById("tool-brush");
+  var toolSamBtn = document.getElementById("tool-sam");
+  var growThresholdEl = document.getElementById("grow-threshold");
+  var growMaxPxEl = document.getElementById("grow-maxpx");
+  var growBarrierEl = document.getElementById("grow-barrier");
+  var brushRadiusEl = document.getElementById("brush-radius");
+  var undoBtn = document.getElementById("undo-btn");
+  var redoBtn = document.getElementById("redo-btn");
+  var hintGrid = document.getElementById("spatial-hint-grid");
+  var hintRegion = document.getElementById("spatial-hint-region");
+
+  var n = GRID_ROWS * GRID_COLS;
+  var assignments = new Array(n);
+  for (var z = 0; z < n; z++) assignments[z] = null;
+  var activeBrush = 1;
+  var isPainting = false;
+  var strokeBrush = 1;
+  var lastStrokeIdx = -1;
+
+  var spatialMode = "grid";
+  var regionTool = "grow";
+  var maskW = 0;
+  var maskH = 0;
+  var mask = null;
+  var labL = null;
+  var labA = null;
+  var labB = null;
+  var maskBrushOn = false;
+  var lastBrushMx = 0;
+  var lastBrushMy = 0;
+  var growDownX = 0;
+  var growDownY = 0;
+  var growHadPointerDown = false;
+
+  var undoStack = [];
+  var redoStack = [];
+  var HISTORY_LIMIT = 25;
+
+  var assistFgBuf = null;
+  var assistEdgeBuf = null;
+  var assistLoadToken = 0;
+  var assistGateFgEl = document.getElementById("assist-gate-fg");
+  var assistGateEdgeEl = document.getElementById("assist-gate-edge");
+  var assistFgMinEl = document.getElementById("assist-fg-min");
+  var assistEdgeCrossEl = document.getElementById("assist-edge-cross");
+  var assistStatusEl = document.getElementById("assist-status");
+
+  function setDimmed(el, dim) {
+    if (!el) return;
+    var label = el.closest && el.closest("label");
+    if (!label && el.id) label = document.querySelector('label[for="' + el.id + '"]');
+    if (label) label.classList.toggle("dimmed", !!dim);
+  }
+
+  function setEnabled(el, enabled) {
+    if (!el) return;
+    el.disabled = !enabled;
+    setDimmed(el, !enabled);
+  }
+
+  function syncRegionToolControls() {
+    var isGrow = regionTool === "grow";
+    var isBrush = regionTool === "brush";
+    var isSam = regionTool === "sam";
+
+    setEnabled(growThresholdEl, isGrow);
+    setEnabled(growMaxPxEl, isGrow);
+
+    // Barrier affects grow + SAM apply; not brush.
+    setEnabled(growBarrierEl, isGrow || isSam);
+
+    setEnabled(brushRadiusEl, isBrush);
+
+    // Assist FG/edge gates affect grow only.
+    setEnabled(assistGateFgEl, isGrow && !!ASSIST.hasFg);
+    setEnabled(assistFgMinEl, isGrow && !!ASSIST.hasFg);
+    setEnabled(assistGateEdgeEl, isGrow && !!ASSIST.hasEdge);
+    setEnabled(assistEdgeCrossEl, isGrow && !!ASSIST.hasEdge);
+  }
+
+  function updateUndoRedoUi() {
+    if (undoBtn) undoBtn.disabled = undoStack.length === 0;
+    if (redoBtn) redoBtn.disabled = redoStack.length === 0;
+  }
+
+  function cloneMask() {
+    return mask ? new Uint8Array(mask) : null;
+  }
+
+  function pushHistory() {
+    if (!mask) return;
+    undoStack.push(cloneMask());
+    if (undoStack.length > HISTORY_LIMIT) undoStack.shift();
+    redoStack.length = 0;
+    updateUndoRedoUi();
+  }
+
+  function applyMaskSnapshot(snap) {
+    if (!mask || !snap || snap.length !== mask.length) return;
+    mask.set(snap);
+    redrawMaskCanvas();
+    syncMaskHidden();
+    updateUndoRedoUi();
+  }
+
+  function undo() {
+    if (!mask || undoStack.length === 0) return;
+    redoStack.push(cloneMask());
+    applyMaskSnapshot(undoStack.pop());
+  }
+
+  function redo() {
+    if (!mask || redoStack.length === 0) return;
+    undoStack.push(cloneMask());
+    applyMaskSnapshot(redoStack.pop());
+  }
+
+  if (undoBtn) undoBtn.addEventListener("click", undo);
+  if (redoBtn) redoBtn.addEventListener("click", redo);
+
+  window.addEventListener("keydown", function (ev) {
+    var k = (ev.key || "").toLowerCase();
+    var mod = ev.metaKey || ev.ctrlKey;
+    if (!mod) return;
+    if (k === "z") {
+      ev.preventDefault();
+      if (ev.shiftKey) redo();
+      else undo();
+    } else if (k === "y") {
+      ev.preventDefault();
+      redo();
+    }
+  });
+
+  function isTypingTarget(t) {
+    if (!t) return false;
+    var tag = (t.tagName || "").toLowerCase();
+    return tag === "input" || tag === "textarea" || tag === "select" || t.isContentEditable;
+  }
+
+  // Extra non-modifier shortcuts (skip while typing):
+  // - 0..6: select Erase / Train N
+  // - e/c/p: focus engine/cars/provider for active train
+  // - u/r: undo/redo
+  window.addEventListener("keydown", function (ev) {
+    if (ev.defaultPrevented) return;
+    if (isTypingTarget(ev.target)) return;
+    var k = (ev.key || "").toLowerCase();
+    if (k >= "0" && k <= "6") {
+      var id = parseInt(k, 10);
+      activeBrush = id;
+      rebuildBrushBar();
+      applyActiveBrushToPanels();
+      return;
+    }
+    if (k === "u") {
+      ev.preventDefault();
+      undo();
+      return;
+    }
+    if (k === "r") {
+      ev.preventDefault();
+      redo();
+      return;
+    }
+    if (k === "e") {
+      ev.preventDefault();
+      focusTrainField(activeTrainIdx(), "engine");
+      return;
+    }
+    if (k === "c") {
+      ev.preventDefault();
+      focusTrainField(activeTrainIdx(), "cars");
+      return;
+    }
+    if (k === "p") {
+      ev.preventDefault();
+      focusTrainField(activeTrainIdx(), "provider");
+      return;
+    }
+  });
+
+  // Mouse back/forward buttons for undo/redo (if available).
+  window.addEventListener("pointerdown", function (ev) {
+    if (isTypingTarget(ev.target)) return;
+    // Common mapping: button 3 = Back, button 4 = Forward (browser-dependent)
+    if (ev.button === 3) {
+      ev.preventDefault();
+      undo();
+    } else if (ev.button === 4) {
+      ev.preventDefault();
+      redo();
+    }
+  }, { passive: false });
+
+  function trainCount() {
+    var v = parseInt(trainCountEl.value, 10);
+    if (isNaN(v) || v < 1) return 1;
+    return Math.min(MAX_TRAINS, v);
+  }
+
+  function getSpatialMode() {
+    var r = document.querySelector('input[name="spatial-mode"]:checked');
+    return r ? r.value : "grid";
+  }
+
+  function syncSpatialModeUi() {
+    spatialMode = getSpatialMode();
+    if (spatialMode === "region") {
+      gridEl.hidden = true;
+      maskCanvas.hidden = false;
+      if (regionControls) regionControls.hidden = false;
+      if (hintGrid) hintGrid.style.display = "none";
+      if (hintRegion) hintRegion.style.display = "block";
+      ensureMaskBackend();
+      redrawMaskCanvas();
+    } else {
+      gridEl.hidden = false;
+      maskCanvas.hidden = true;
+      if (regionControls) regionControls.hidden = true;
+      if (hintGrid) hintGrid.style.display = "block";
+      if (hintRegion) hintRegion.style.display = "none";
+    }
+    syncMaskHidden();
+    rebuildBrushBar();
+    layoutOverlays();
+    syncRegionToolControls();
+  }
+
+  document.querySelectorAll('input[name="spatial-mode"]').forEach(function (el) {
+    el.addEventListener("change", syncSpatialModeUi);
+  });
+
+  function setRegionTool(t) {
+    regionTool = t;
+    if (toolGrowBtn) toolGrowBtn.classList.toggle("active", t === "grow");
+    if (toolBrushBtn) toolBrushBtn.classList.toggle("active", t === "brush");
+    if (toolSamBtn) toolSamBtn.classList.toggle("active", t === "sam");
+    syncRegionToolControls();
+  }
+  if (toolGrowBtn) toolGrowBtn.addEventListener("click", function () { setRegionTool("grow"); });
+  if (toolBrushBtn) toolBrushBtn.addEventListener("click", function () { setRegionTool("brush"); });
+  if (toolSamBtn) toolSamBtn.addEventListener("click", function () { setRegionTool("sam"); });
+
+  function rgbToLab(r, g, b) {
+    function lin(c) {
+      return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    }
+    var R = lin(r);
+    var G = lin(g);
+    var B = lin(b);
+    var X = R * 0.4124 + G * 0.3576 + B * 0.1805;
+    var Y = R * 0.2126 + G * 0.7152 + B * 0.0722;
+    var Z = R * 0.0193 + G * 0.1192 + B * 0.9505;
+    X /= 0.95047;
+    Y /= 1.0;
+    Z /= 1.08883;
+    function f(t) {
+      return t > 0.008856 ? Math.pow(t, 1 / 3) : 7.787 * t + 16 / 116;
+    }
+    var fx = f(X);
+    var fy = f(Y);
+    var fz = f(Z);
+    return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
+  }
+
+  function computeMaskDims(nw, nh) {
+    var maxDim = 400;
+    var scale = Math.min(maxDim / nw, maxDim / nh, 1);
+    var w = Math.max(32, Math.round(nw * scale));
+    var h = Math.max(32, Math.round(nh * scale));
+    var cap = 200000;
+    while (w * h > cap && w > 32 && h > 32) {
+      w = Math.max(32, Math.floor(w * 0.92));
+      h = Math.max(32, Math.floor(h * 0.92));
+    }
+    return [w, h];
+  }
+
+  function rasterAssistToBuffer(im) {
+    var c = document.createElement("canvas");
+    c.width = maskW;
+    c.height = maskH;
+    var x = c.getContext("2d");
+    x.drawImage(im, 0, 0, maskW, maskH);
+    var d = x.getImageData(0, 0, maskW, maskH).data;
+    var buf = new Uint8Array(maskW * maskH);
+    for (var i = 0; i < buf.length; i++) buf[i] = d[i * 4];
+    return buf;
+  }
+
+  function updateAssistStatus() {
+    if (!assistStatusEl) return;
+    var parts = [];
+    if (ASSIST.hasFg) {
+      parts.push(assistFgBuf ? "FG map ready" : (ASSIST.fgUrl ? "FG loading…" : "FG missing"));
+    } else parts.push("no FG sidecar");
+    if (ASSIST.hasEdge) {
+      parts.push(assistEdgeBuf ? "edge map ready" : (ASSIST.edgeUrl ? "edge loading…" : "edge missing"));
+    } else parts.push("no edge sidecar");
+    assistStatusEl.textContent = "Assist: " + parts.join(" · ");
+  }
+
+  function loadAssistLayers() {
+    assistLoadToken++;
+    var token = assistLoadToken;
+    assistFgBuf = null;
+    assistEdgeBuf = null;
+    if (!maskW || !maskH) {
+      updateAssistStatus();
+      return;
+    }
+    updateAssistStatus();
+    var pending = 0;
+    function oneDone() {
+      pending--;
+      if (pending <= 0 && token === assistLoadToken) updateAssistStatus();
+    }
+    function loadUrl(url, which) {
+      if (!url) return;
+      pending++;
+      var im = new Image();
+      im.crossOrigin = "anonymous";
+      im.onload = function () {
+        if (token !== assistLoadToken) {
+          oneDone();
+          return;
+        }
+        if (which === "fg") assistFgBuf = rasterAssistToBuffer(im);
+        else assistEdgeBuf = rasterAssistToBuffer(im);
+        oneDone();
+        updateAssistStatus();
+      };
+      im.onerror = function () {
+        if (token === assistLoadToken) {
+          if (which === "fg") assistFgBuf = null;
+          else assistEdgeBuf = null;
+        }
+        oneDone();
+        updateAssistStatus();
+      };
+      im.src = url;
+    }
+    loadUrl(ASSIST.fgUrl, "fg");
+    loadUrl(ASSIST.edgeUrl, "edge");
+    if (pending === 0) updateAssistStatus();
+  }
+
+  function fgAllows(ii, trainId) {
+    if (trainId === 0) return true;
+    if (!assistFgBuf || !assistGateFgEl || !assistGateFgEl.checked) return true;
+    if (!ASSIST.hasFg) return true;
+    var t = assistFgMinEl ? parseInt(assistFgMinEl.value, 10) : 48;
+    if (isNaN(t)) t = 48;
+    return assistFgBuf[ii] >= t;
+  }
+
+  function edgeBlocks(ii, nj) {
+    if (!assistEdgeBuf || !assistGateEdgeEl || !assistGateEdgeEl.checked) return false;
+    if (!ASSIST.hasEdge) return false;
+    var thr = assistEdgeCrossEl ? parseInt(assistEdgeCrossEl.value, 10) : 160;
+    if (isNaN(thr)) thr = 160;
+    var a = assistEdgeBuf[ii];
+    var b = assistEdgeBuf[nj];
+    return Math.max(a, b) >= thr;
+  }
+
+  function ensureMaskBackend() {
+    var nw = img.naturalWidth;
+    var nh = img.naturalHeight;
+    if (!nw || !nh) return;
+    var dims = computeMaskDims(nw, nh);
+    var w = dims[0];
+    var h = dims[1];
+    if (w === maskW && h === maskH && mask && labL) return;
+    maskW = w;
+    maskH = h;
+    mask = new Uint8Array(maskW * maskH);
+    labL = new Float32Array(maskW * maskH);
+    labA = new Float32Array(maskW * maskH);
+    labB = new Float32Array(maskW * maskH);
+    var oc = document.createElement("canvas");
+    oc.width = maskW;
+    oc.height = maskH;
+    var octx = oc.getContext("2d");
+    octx.drawImage(img, 0, 0, maskW, maskH);
+    var id = octx.getImageData(0, 0, maskW, maskH).data;
+    for (var i = 0, p = 0; i < maskW * maskH; i++, p += 4) {
+      var lab = rgbToLab(id[p] / 255, id[p + 1] / 255, id[p + 2] / 255);
+      labL[i] = lab[0];
+      labA[i] = lab[1];
+      labB[i] = lab[2];
+    }
+    redrawMaskCanvas();
+    syncMaskHidden();
+    loadAssistLayers();
+  }
+
+  function displayToMask(clientX, clientY) {
+    var r = maskCanvas.getBoundingClientRect();
+    var nx = (clientX - r.left) / Math.max(1, r.width);
+    var ny = (clientY - r.top) / Math.max(1, r.height);
+    var mx = Math.min(maskW - 1, Math.max(0, Math.floor(nx * maskW)));
+    var my = Math.min(maskH - 1, Math.max(0, Math.floor(ny * maskH)));
+    return { mx: mx, my: my };
+  }
+
+  function trainRgba(tid, alpha) {
+    var colors = {
+      1: [61, 139, 253],
+      2: [46, 204, 113],
+      3: [241, 196, 15],
+      4: [231, 76, 60],
+      5: [155, 89, 182],
+      6: [26, 188, 156]
+    };
+    var c = colors[tid] || [200, 200, 200];
+    return "rgba(" + c[0] + "," + c[1] + "," + c[2] + "," + alpha + ")";
+  }
+
+  function redrawMaskCanvas() {
+    if (!maskCanvas || !mask || !maskW) return;
+    var w = img.clientWidth;
+    var h = img.clientHeight;
+    if (!w || !h) return;
+    maskCanvas.width = w;
+    maskCanvas.height = h;
+    var ctx = maskCanvas.getContext("2d");
+    ctx.clearRect(0, 0, w, h);
+    var alpha = showSpatialPaint && showSpatialPaint.checked ? 0.42 : 0.12;
+    for (var py = 0; py < maskH; py++) {
+      for (var px = 0; px < maskW; px++) {
+        var v = mask[py * maskW + px];
+        if (!v) continue;
+        ctx.fillStyle = trainRgba(v, alpha);
+        var x0 = Math.floor((px * w) / maskW);
+        var x1 = Math.ceil(((px + 1) * w) / maskW);
+        var y0 = Math.floor((py * h) / maskH);
+        var y1 = Math.ceil(((py + 1) * h) / maskH);
+        ctx.fillRect(x0, y0, Math.max(1, x1 - x0), Math.max(1, y1 - y0));
+      }
+    }
+  }
+
+  function encodeRle(u8) {
+    var out = [];
+    var i = 0;
+    var total = u8.length;
+    while (i < total) {
+      var v = u8[i];
+      var run = 0;
+      while (i + run < total && u8[i + run] === v && run < 10000000) run++;
+      out.push(v, run);
+      i += run;
+    }
+    return out;
+  }
+
+  function decodeRleToU8(rle, total) {
+    var out = new Uint8Array(total);
+    if (!rle || !rle.length) return out;
+    var idx = 0;
+    for (var i = 0; i + 1 < rle.length; i += 2) {
+      var v = rle[i] | 0;
+      var run = rle[i + 1] | 0;
+      for (var j = 0; j < run && idx < total; j++) out[idx++] = v;
+    }
+    return out;
+  }
+
+  function applyBinaryMask(binaryU8, trainId) {
+    if (!mask || !binaryU8 || binaryU8.length !== mask.length) return;
+    var barrier = !!(growBarrierEl && growBarrierEl.checked);
+    for (var i = 0; i < mask.length; i++) {
+      if (!binaryU8[i]) continue;
+      if (barrier && mask[i] !== 0 && mask[i] !== trainId) continue;
+      mask[i] = trainId;
+    }
+    redrawMaskCanvas();
+    syncMaskHidden();
+  }
+
+  async function samSegmentAt(mx, my, trainId) {
+    if (!presentCheck.checked || !maskW || !maskH) return;
+    // map mask coords -> natural image coords
+    var x = Math.max(0, Math.min(img.naturalWidth - 1, Math.floor(((mx + 0.5) / maskW) * img.naturalWidth)));
+    var y = Math.max(0, Math.min(img.naturalHeight - 1, Math.floor(((my + 0.5) / maskH) * img.naturalHeight)));
+    if (assistStatusEl) assistStatusEl.textContent = "Assist: SAM running…";
+    var body = { filename: {{ filename | tojson }}, x: x, y: y, out_w: maskW, out_h: maskH };
+    var r = await fetch("/assist/sam", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) {
+      if (assistStatusEl) assistStatusEl.textContent = "Assist: SAM failed (" + r.status + ")";
+      return;
+    }
+    var d = await r.json();
+    if (!d || d.error) {
+      if (assistStatusEl) assistStatusEl.textContent = "Assist: SAM error";
+      return;
+    }
+    if (d.w !== maskW || d.h !== maskH) {
+      if (assistStatusEl) assistStatusEl.textContent = "Assist: SAM size mismatch";
+      return;
+    }
+    var bin = decodeRleToU8(d.rle, maskW * maskH);
+    applyBinaryMask(bin, trainId);
+    updateAssistStatus();
+  }
+
+  function syncMaskHidden() {
+    if (!hiddenMask || !mask || !maskW) {
+      if (hiddenMask) hiddenMask.value = "";
+      return;
+    }
+    var any = false;
+    for (var i = 0; i < mask.length; i++) {
+      if (mask[i] !== 0) {
+        any = true;
+        break;
+      }
+    }
+    hiddenMask.value = any ? JSON.stringify({ w: maskW, h: maskH, rle: encodeRle(mask) }) : "";
+  }
+
+  function regionGrow(mx, my, trainId, thr) {
+    if (!presentCheck.checked || !labL || !mask) return;
+    if (mx < 0 || my < 0 || mx >= maskW || my >= maskH) return;
+    var si = my * maskW + mx;
+    if (!fgAllows(si, trainId)) {
+      redrawMaskCanvas();
+      return;
+    }
+    var sL = labL[si];
+    var sA = labA[si];
+    var sB = labB[si];
+    var q = [[mx, my]];
+    var seen = new Uint8Array(maskW * maskH);
+    var qi = 0;
+    var maxP = Math.min(
+      maskW * maskH,
+      growMaxPxEl ? (parseInt(growMaxPxEl.value, 10) || 25000) : 25000
+    );
+    var count = 0;
+    var barrier = !!(growBarrierEl && growBarrierEl.checked);
+    while (qi < q.length && count < maxP) {
+      var x = q[qi][0];
+      var y = q[qi][1];
+      qi++;
+      var ii = y * maskW + x;
+      if (seen[ii]) continue;
+      seen[ii] = 1;
+      if (barrier && mask[ii] !== 0 && mask[ii] !== trainId) continue;
+      if (!fgAllows(ii, trainId)) continue;
+      var dL = labL[ii] - sL;
+      var dA = labA[ii] - sA;
+      var dB = labB[ii] - sB;
+      if (Math.sqrt(dL * dL + dA * dA + dB * dB) > thr) continue;
+      mask[ii] = trainId;
+      count++;
+      if (x + 1 < maskW && !seen[ii + 1] && !edgeBlocks(ii, ii + 1)) q.push([x + 1, y]);
+      if (x - 1 >= 0 && !seen[ii - 1] && !edgeBlocks(ii, ii - 1)) q.push([x - 1, y]);
+      if (y + 1 < maskH && !seen[ii + maskW] && !edgeBlocks(ii, ii + maskW)) q.push([x, y + 1]);
+      if (y - 1 >= 0 && !seen[ii - maskW] && !edgeBlocks(ii, ii - maskW)) q.push([x, y - 1]);
+    }
+    redrawMaskCanvas();
+    syncMaskHidden();
+  }
+
+  function stampDisk(cx, cy, rad, trainId) {
+    if (!mask) return;
+    var r = Math.round(rad);
+    for (var dy = -r; dy <= r; dy++) {
+      for (var dx = -r; dx <= r; dx++) {
+        if (dx * dx + dy * dy > r * r) continue;
+        var x = cx + dx;
+        var y = cy + dy;
+        if (x >= 0 && x < maskW && y >= 0 && y < maskH) mask[y * maskW + x] = trainId;
+      }
+    }
+  }
+
+  function stampLine(x0, y0, x1, y1, rad, trainId) {
+    var dx = Math.abs(x1 - x0);
+    var dy = Math.abs(y1 - y0);
+    var sx = x0 < x1 ? 1 : -1;
+    var sy = y0 < y1 ? 1 : -1;
+    var err = dx - dy;
+    var x = x0;
+    var y = y0;
+    while (true) {
+      stampDisk(x, y, rad, trainId);
+      if (x === x1 && y === y1) break;
+      var e2 = 2 * err;
+      if (e2 > -dy) {
+        err -= dy;
+        x += sx;
+      }
+      if (e2 < dx) {
+        err += dx;
+        y += sy;
+      }
+    }
+  }
+
+  function clearMask() {
+    if (mask && mask.length) {
+      pushHistory();
+      for (var i = 0; i < mask.length; i++) mask[i] = 0;
+    }
+    redrawMaskCanvas();
+    syncMaskHidden();
+    updateUndoRedoUi();
+  }
+
+  function syncPanelsVisibility() {
+    var tc = trainCount();
+    if (activeBrush > tc) activeBrush = tc;
+    for (var i = 0; i < MAX_TRAINS; i++) {
+      var fs = document.querySelector('[data-train-panel="' + i + '"]');
+      if (!fs) continue;
+      fs.hidden = i >= tc;
+    }
+    for (var j = 0; j < n; j++) {
+      if (assignments[j] != null && assignments[j] > tc) assignments[j] = null;
+    }
+    rebuildBrushBar();
+    applyAllCellClasses();
+    syncGridHidden();
+    if (mask) {
+      for (var k = 0; k < mask.length; k++) {
+        if (mask[k] > tc) mask[k] = 0;
+      }
+      redrawMaskCanvas();
+      syncMaskHidden();
+    }
+  }
+
+  function activeTrainIdx() {
+    if (activeBrush <= 0) return 0;
+    return Math.max(0, Math.min(MAX_TRAINS - 1, activeBrush - 1));
+  }
+
+  function markActiveTrainPanel() {
+    var idx = activeTrainIdx();
+    document.querySelectorAll(".train-panel").forEach(function (fs) {
+      var ti = parseInt(fs.getAttribute("data-train-panel") || "0", 10);
+      fs.classList.toggle("is-active", presentCheck.checked && ti === idx);
+    });
+  }
+
+  function focusTrainField(ti, which) {
+    var id = "tp-" + ti + "-" + which;
+    var el = document.getElementById(id);
+    if (!el || el.disabled) return false;
+    try {
+      el.focus();
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+    } catch (e) {}
+    return true;
+  }
+
+  function applyActiveBrushToPanels() {
+    // Ensure train-count covers the selected brush, then highlight that train panel.
+    if (!presentCheck.checked) return;
+    if (activeBrush > 0 && trainCountEl) {
+      var tc = trainCount();
+      if (activeBrush > tc) {
+        trainCountEl.value = String(activeBrush);
+        syncPanelsVisibility();
+      }
+    }
+    markActiveTrainPanel();
+  }
+
+  function rebuildBrushBar() {
+    var tc = trainCount();
+    brushBar.innerHTML = "";
+    var hintSp = document.createElement("span");
+    hintSp.className = "hint";
+    hintSp.textContent =
+      getSpatialMode() === "region"
+        ? "Pick train / Erase — Grow: click image · Brush: drag on image."
+        : "Pick a color, then click or drag across grid cells:";
+    brushBar.appendChild(hintSp);
+    function addBtn(id, label, cls) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "brush-btn " + cls + (activeBrush === id ? " active" : "");
+      b.setAttribute("data-brush", String(id));
+      b.textContent = label;
+      b.addEventListener("click", function () {
+        activeBrush = id;
+        rebuildBrushBar();
+        applyActiveBrushToPanels();
+      });
+      brushBar.appendChild(b);
+    }
+    addBtn(0, "Erase", "b0");
+    for (var t = 1; t <= tc; t++) {
+      addBtn(t, "Train " + t, "b" + t);
+    }
+    var leg = document.getElementById("legend-dynamic");
+    if (leg) {
+      leg.innerHTML = '<span><i class="swatch"></i> YOLO (model)</span>';
+      for (var k = 1; k <= tc; k++) {
+        var s = document.createElement("span");
+        s.innerHTML =
+          '<i class="swatch" style="border-color:transparent;background:var(--t' +
+          k +
+          ')"></i> Train ' +
+          k;
+        leg.appendChild(s);
+      }
+    }
+  }
+
+  function syncGridHidden() {
+    var cells = [];
+    for (var i = 0; i < n; i++) cells.push(assignments[i] == null ? null : assignments[i]);
+    var any = cells.some(function (c) {
+      return c != null;
+    });
+    hiddenGrid.value = any ? JSON.stringify({ rows: GRID_ROWS, cols: GRID_COLS, cells: cells }) : "";
+  }
+
+  function applyPaintVisibility() {
+    if (gridEl && showSpatialPaint) gridEl.classList.toggle("selection-hidden", !showSpatialPaint.checked);
+    if (maskCanvas && showSpatialPaint) maskCanvas.classList.toggle("selection-hidden", !showSpatialPaint.checked);
+    redrawMaskCanvas();
+  }
+
+  function applyYoloVisibility() {
+    if (!yoloSvg || !showYolo) return;
+    yoloSvg.style.display = showYolo.checked ? "" : "none";
+  }
+
+  function applyAllCellClasses() {
+    gridEl.querySelectorAll(".grid-cell").forEach(function (c) {
+      var idx = parseInt(c.dataset.idx, 10);
+      var t = assignments[idx];
+      c.className = "grid-cell" + (t ? " t" + t : "");
+    });
+    applyPaintVisibility();
+  }
+
+  function refreshCellClass(idx) {
+    var cell = gridEl.querySelector('.grid-cell[data-idx="' + idx + '"]');
+    if (!cell) return;
+    var t = assignments[idx];
+    cell.className = "grid-cell" + (t ? " t" + t : "");
+    applyPaintVisibility();
+  }
+
+  function applyStrokeCell(idx) {
+    if (!presentCheck.checked) return;
+    if (idx < 0 || idx >= n) return;
+    if (idx === lastStrokeIdx) return;
+    lastStrokeIdx = idx;
+    if (strokeBrush === 0) assignments[idx] = null;
+    else assignments[idx] = strokeBrush;
+    refreshCellClass(idx);
+    syncGridHidden();
+  }
+
+  function endGridStroke(ev) {
+    if (!isPainting) return;
+    isPainting = false;
+    lastStrokeIdx = -1;
+    if (ev && typeof ev.pointerId === "number") {
+      try {
+        gridEl.releasePointerCapture(ev.pointerId);
+      } catch (err) {}
+    }
+  }
+
+  function layoutOverlays() {
+    spatialMode = getSpatialMode();
+    var w = img.clientWidth;
+    var h = img.clientHeight;
+    if (!w || !h) return;
+    yoloSvg.setAttribute("width", w);
+    yoloSvg.setAttribute("height", h);
+    yoloSvg.setAttribute("viewBox", "0 0 " + w + " " + h);
+    gridEl.style.width = w + "px";
+    gridEl.style.height = h + "px";
+    gridEl.style.gridTemplateColumns = "repeat(" + GRID_COLS + ", 1fr)";
+    gridEl.style.gridTemplateRows = "repeat(" + GRID_ROWS + ", 1fr)";
+    gridEl.hidden = spatialMode === "region";
+    maskCanvas.style.width = w + "px";
+    maskCanvas.style.height = h + "px";
+    maskCanvas.hidden = spatialMode !== "region";
+    var nw = img.naturalWidth || w;
+    var nh = img.naturalHeight || h;
+    var sx = w / nw;
+    var sy = h / nh;
+    while (yoloSvg.firstChild) yoloSvg.removeChild(yoloSvg.firstChild);
+    if (HINT && Array.isArray(HINT.boxes)) {
+      HINT.boxes.forEach(function (b) {
+        var r = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        r.setAttribute("x", (b.x * sx).toFixed(2));
+        r.setAttribute("y", (b.y * sy).toFixed(2));
+        r.setAttribute("width", (b.w * sx).toFixed(2));
+        r.setAttribute("height", (b.h * sy).toFixed(2));
+        r.setAttribute("rx", "2");
+        var conf = typeof b.conf === "number" ? b.conf.toFixed(2) : "";
+        r.setAttribute("title", (b.label || "train") + (conf ? " " + conf : ""));
+        yoloSvg.appendChild(r);
+      });
+    }
+    applyYoloVisibility();
+    if (spatialMode === "region") ensureMaskBackend();
+    redrawMaskCanvas();
+  }
+
+  function buildGrid() {
+    gridEl.innerHTML = "";
+    for (var i = 0; i < n; i++) {
+      var cell = document.createElement("button");
+      cell.type = "button";
+      cell.className = "grid-cell";
+      cell.dataset.idx = String(i);
+      cell.setAttribute("aria-label", "Cell " + (i + 1));
+      gridEl.appendChild(cell);
+    }
+
+    gridEl.addEventListener("pointerdown", function (ev) {
+      if (ev.button !== 0) return;
+      var cell = ev.target.closest && ev.target.closest(".grid-cell");
+      if (!cell || !gridEl.contains(cell) || !presentCheck.checked) return;
+      ev.preventDefault();
+      isPainting = true;
+      strokeBrush = activeBrush;
+      lastStrokeIdx = -1;
+      applyStrokeCell(parseInt(cell.dataset.idx, 10));
+      try {
+        gridEl.setPointerCapture(ev.pointerId);
+      } catch (err) {}
+    });
+
+    gridEl.addEventListener("pointermove", function (ev) {
+      if (!isPainting) return;
+      var el = document.elementFromPoint(ev.clientX, ev.clientY);
+      if (!el || !el.closest) return;
+      var over = el.closest(".grid-cell");
+      if (!over || !gridEl.contains(over)) return;
+      applyStrokeCell(parseInt(over.dataset.idx, 10));
+    });
+
+    gridEl.addEventListener("pointerup", endGridStroke);
+    gridEl.addEventListener("pointercancel", endGridStroke);
+    gridEl.addEventListener("lostpointercapture", function () {
+      if (isPainting) {
+        isPainting = false;
+        lastStrokeIdx = -1;
+      }
+    });
+    window.addEventListener("blur", function () {
+      if (isPainting) endGridStroke(null);
+      if (maskBrushOn) endMaskBrush(null);
+    });
+
+    gridEl.addEventListener("click", function (ev) {
+      var cell = ev.target.closest && ev.target.closest(".grid-cell");
+      if (!cell || !gridEl.contains(cell) || !presentCheck.checked) return;
+      var idx = parseInt(cell.dataset.idx, 10);
+      if (activeBrush === 0) assignments[idx] = null;
+      else assignments[idx] = activeBrush;
+      refreshCellClass(idx);
+      syncGridHidden();
+    });
+
+    applyAllCellClasses();
+    syncGridHidden();
+  }
+
+  function endMaskBrush(ev) {
+    if (!maskBrushOn) return;
+    maskBrushOn = false;
+    if (ev && typeof ev.pointerId === "number") {
+      try {
+        maskCanvas.releasePointerCapture(ev.pointerId);
+      } catch (err) {}
+    }
+    syncMaskHidden();
+    updateUndoRedoUi();
+  }
+
+  maskCanvas.addEventListener("pointerdown", function (ev) {
+    if (spatialMode !== "region" || ev.button !== 0 || !presentCheck.checked) return;
+    ensureMaskBackend();
+    ev.preventDefault();
+    if (regionTool === "brush") {
+      pushHistory();
+      maskBrushOn = true;
+      try {
+        maskCanvas.setPointerCapture(ev.pointerId);
+      } catch (err) {}
+      var rad = brushRadiusEl ? parseInt(brushRadiusEl.value, 10) || 5 : 5;
+      var p = displayToMask(ev.clientX, ev.clientY);
+      lastBrushMx = p.mx;
+      lastBrushMy = p.my;
+      stampDisk(p.mx, p.my, rad, activeBrush);
+      redrawMaskCanvas();
+      syncMaskHidden();
+      return;
+    }
+    growHadPointerDown = true;
+    growDownX = ev.clientX;
+    growDownY = ev.clientY;
+  });
+
+  maskCanvas.addEventListener("pointermove", function (ev) {
+    if (spatialMode !== "region" || !presentCheck.checked) return;
+    if (!maskBrushOn || regionTool !== "brush") return;
+    var rad = brushRadiusEl ? parseInt(brushRadiusEl.value, 10) || 5 : 5;
+    var p = displayToMask(ev.clientX, ev.clientY);
+    stampLine(lastBrushMx, lastBrushMy, p.mx, p.my, rad, activeBrush);
+    lastBrushMx = p.mx;
+    lastBrushMy = p.my;
+    redrawMaskCanvas();
+    syncMaskHidden();
+  });
+
+  maskCanvas.addEventListener("pointerup", function (ev) {
+    if (spatialMode !== "region" || !presentCheck.checked) return;
+    if (regionTool === "brush") {
+      endMaskBrush(ev);
+      return;
+    }
+    if (!growHadPointerDown) return;
+    growHadPointerDown = false;
+    var dx = ev.clientX - growDownX;
+    var dy = ev.clientY - growDownY;
+    if (dx * dx + dy * dy > 64) return;
+    pushHistory();
+    var thr = growThresholdEl ? parseFloat(growThresholdEl.value) || 12 : 12;
+    var p = displayToMask(ev.clientX, ev.clientY);
+    if (regionTool === "sam") {
+      samSegmentAt(p.mx, p.my, activeBrush);
+    } else {
+      regionGrow(p.mx, p.my, activeBrush, thr);
+    }
+  });
+
+  maskCanvas.addEventListener("pointercancel", function (ev) {
+    growHadPointerDown = false;
+    endMaskBrush(ev);
+  });
+
+  function syncTrainsJson() {
+    if (!presentCheck.checked) {
+      hiddenTrains.value = "";
+      return;
+    }
+    var tc = trainCount();
+    var arr = [];
+    for (var i = 0; i < tc; i++) {
+      var pv = document.getElementById("tp-" + i + "-provider");
+      var evEl = document.getElementById("tp-" + i + "-engine");
+      var cv = document.getElementById("tp-" + i + "-cars");
+      var carsRaw = (cv && cv.value) || "";
+      var cars = carsRaw === "" ? null : parseInt(carsRaw, 10);
+      if (isNaN(cars)) cars = null;
+      arr.push({
+        provider: pv ? pv.value : "unknown",
+        engine_model: evEl && evEl.value.trim() ? evEl.value.trim() : null,
+        num_cars: cars
+      });
+    }
+    hiddenTrains.value = JSON.stringify(arr);
+  }
+
+  document.getElementById("clear-grid").addEventListener("click", function () {
+    for (var i = 0; i < n; i++) assignments[i] = null;
+    applyAllCellClasses();
+    syncGridHidden();
+    clearMask();
+  });
+
+  trainCountEl.addEventListener("input", syncPanelsVisibility);
+  trainCountEl.addEventListener("change", syncPanelsVisibility);
+
+  document.querySelectorAll("[data-copy-from][data-copy-to]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var from = parseInt(btn.getAttribute("data-copy-from"), 10);
+      var to = parseInt(btn.getAttribute("data-copy-to"), 10);
+      if (isNaN(from) || isNaN(to)) return;
+      var pFrom = document.getElementById("tp-" + from + "-provider");
+      var eFrom = document.getElementById("tp-" + from + "-engine");
+      var cFrom = document.getElementById("tp-" + from + "-cars");
+      var pTo = document.getElementById("tp-" + to + "-provider");
+      var eTo = document.getElementById("tp-" + to + "-engine");
+      var cTo = document.getElementById("tp-" + to + "-cars");
+      if (pFrom && pTo) pTo.value = pFrom.value;
+      if (eFrom && eTo) eTo.value = eFrom.value;
+      if (cFrom && cTo) cTo.value = cFrom.value;
+      syncTrainsJson();
+      focusTrainField(to, "engine");
+    });
+  });
+
+  document.querySelectorAll("[data-step-cars][data-train]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var ti = parseInt(btn.getAttribute("data-train"), 10);
+      var delta = parseInt(btn.getAttribute("data-step-cars"), 10);
+      if (isNaN(ti) || isNaN(delta)) return;
+      var c = document.getElementById("tp-" + ti + "-cars");
+      if (!c || c.disabled) return;
+      var v = c.value === "" ? 0 : parseInt(c.value, 10);
+      if (isNaN(v)) v = 0;
+      v = Math.max(0, Math.min(99, v + delta));
+      c.value = String(v);
+      syncTrainsJson();
+    });
+  });
+
+  function applyPresentUi() {
+    var on = presentCheck.checked;
+    trainCountEl.disabled = !on;
+    document.querySelectorAll(".train-panel").forEach(function (fs) {
+      fs.querySelectorAll("select, input").forEach(function (el) {
+        el.disabled = !on;
+      });
+    });
+    if (!on) {
+      hiddenTrains.value = "";
+      hiddenGrid.value = "";
+      hiddenMask.value = "";
+    }
+    markActiveTrainPanel();
+  }
+  presentCheck.addEventListener("change", applyPresentUi);
+  applyPresentUi();
+
+  document.getElementById("label-form").addEventListener("submit", function () {
+    syncGridHidden();
+    syncMaskHidden();
+    syncTrainsJson();
+  });
+
+  if (showSpatialPaint) {
+    showSpatialPaint.addEventListener("change", applyPaintVisibility);
+  }
+  if (showYolo) {
+    showYolo.addEventListener("change", applyYoloVisibility);
+    applyYoloVisibility();
+  }
+
+  buildGrid();
+  syncSpatialModeUi();
+  applyPaintVisibility();
+  updateUndoRedoUi();
+  img.addEventListener("load", function () {
+    layoutOverlays();
+    ensureMaskBackend();
+  });
+  if (img.complete) layoutOverlays();
+  window.addEventListener("resize", function () {
+    layoutOverlays();
+    applyAllCellClasses();
+  });
+
+  {% if hint and hint.get('count') %}
+  if (trainCountEl && String(trainCountEl.value) === "1") {
+    trainCountEl.placeholder = "hint: model count {{ hint.get('count') }}";
+  }
+  {% endif %}
+})();
+    </script>
+    {% endif %}
+  </main>
+</body>
+</html>

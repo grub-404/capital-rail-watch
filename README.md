@@ -21,6 +21,12 @@ source .venv/bin/activate    # Mac/Linux — Windows: .venv\Scripts\activate
 python -m pip install -r backend/requirements.txt
 ```
 
+To run **unit tests** (including `tests/vision/` and YOLO inference tests), also install dev dependencies (adds **PyTorch** + Ultralytics; first test run may download `yolov8n.pt`):
+
+```bash
+python -m pip install -r requirements-dev.txt
+```
+
 Always activate the venv before running the server. If you see **`pyenv: pip: command not found`**, your shell does not have a standalone `pip` on `PATH` for the active Python. Using **`python -m pip`** (as above) runs pip as a module and avoids that. Alternatively, pick the Python version pyenv lists as having pip: `pyenv shell 3.10.14` then retry.
 
 ### 3. Set up WMATA key (optional — for Metro data)
@@ -84,6 +90,76 @@ overlay/
   *.svg              # Logos for the ticker (Amtrak, MARC)
 db/
   schema.sql         # SQLite schema for train logging
+  vision_labels.db   # Human labels on screenshots (slice 5); gitignored like *.db
+templates/
+  vision_label/      # Jinja templates for labeling UI (slice 5)
+data/clips/
+  manifest.csv       # YouTube URLs + time ranges for yt-dlp (slice 2); downloaded mp4s stay local-only
+scripts/
+  fetch_clips.sh     # Wrapper: python -m vision.fetch --from-manifest …
+vision/
+  PLAN.md            # Phased plan: YOLO, screenshots, yt-dlp corpus, labeling app
+  infer.py           # CLI: python -m vision.infer (slice 1)
+  fetch.py           # CLI: python -m vision.fetch (slice 2, yt-dlp)
+  clip_fetch.py      # Manifest parsing + yt-dlp argv builder
+  screenshot.py      # PNG + JSON sidecars when train present (slice 3)
+  label_app.py       # Flask UI: python -m vision.label_app (slice 5)
+  label_db.py        # SQLite helpers for labels + export.jsonl
+  yolo_infer.py      # Ultralytics wrapper → DetectionResult
+  test_stills/       # Regression images (with_train / without_train)
+```
+
+### Vision pipeline (experimental)
+
+The **`vision/`** package will hold pretrained YOLO inference (train / locomotive / railcar), a **yes/no + box + count** payload, **screenshot capture** with JSON sidecars, **yt-dlp**-based test clips, and later a **crowd labeling** webapp. Roadmap and slices: **[vision/PLAN.md](vision/PLAN.md)**.
+
+**Slice 0** — shared JSON contract and env-driven paths (no PyTorch required for schema-only tests):
+
+- **`vision/schema.py`** — `DetectionResult` / `DetectionBox`; `present`, `count`, `boxes[]`, `frame_id`, `source`, `timestamp_utc`, `version`.
+- **`vision/labels.py`** — which YOLO class names count as one “train” for aggregation.
+- **`vision/config.py`** — reads optional **`VISION_*`** and **`YTDLP_OUTPUT_DIR`** from the repo-root `.env` (see `.env.example`).
+- **`vision/fixtures/detection_example.json`** — example payload for tests and API docs.
+
+**Slice 1** — pretrained **Ultralytics YOLO** (default **`yolov8n.pt`**, COCO includes a **train** class). Install dev deps (pulls PyTorch), then:
+
+```bash
+python -m vision.infer --input path/to/screenshot.png
+python -m vision.infer --input path/to/clips/ --out-dir ./vision_infer_out
+python -m vision.infer --input path/to/video.mp4 --out-dir ./out
+python -m vision.infer --input data/clips/z7KgEnxJo_s/ --screenshots --sample-interval-sec 1
+```
+
+- **Image** (single file): writes **`result.json`** (`DetectionResult`) under `--out-dir`.
+- **Directory** of images: writes **`{stem}_result.json`** per file.
+- **Video** / **folder of `.mp4`**: writes **`*_results.jsonl`** — one JSON line per **sampled** frame (not every decoded frame by default).
+- **Time sampling**: default **`VISION_VIDEO_SAMPLE_INTERVAL_SEC=1.0`** → Ultralytics **`vid_stride ≈ round(fps × interval)`**. Set **`0`** or **`--sample-interval-sec 0`** for every frame (slow).
+- **Slice 3 — Screenshots**: **`--screenshots`** saves **`{timestamp}_{source}_vidt{ms}ms_f{frame}.png`** + **`.json`** when **`present`**. Spacing is primarily **`VISION_SCREENSHOT_MIN_VIDEO_SEC`** (default **6**): at least that many **seconds along the same mp4’s timeline** between saves, so shots spread across a pass instead of bunching at frame 0. Optional **`VISION_SCREENSHOT_MIN_INTERVAL_SEC`** (default **0**) adds a **wall-clock** cap per clip. CLI: **`--screenshot-min-video-sec`**, **`--screenshot-min-interval-sec`**.
+- **`--annotate`**: saves annotated JPEG next to JSON (images only).
+
+**Slice 5 — Labeling (railfans):** Desktop-first layout (screenshot left, form right). For each screenshot you can label **up to six trains separately** (provider, engine/consist, cars each), stored as **`trains_json`**. Optional **16×12 grid** with **per-train colors** paints which cells belong to train 1 vs 2 (when YOLO merges two trains into one box), stored in **`train_grid_json`** as per-cell train ids. Top-level **provider** / **engine_model** / **num_cars** mirror **train 1** for simple exports. **YOLO boxes** and **model hint** come from the sibling **`.json`**. Labels go to **`db/vision_labels.db`**; download **`labels.jsonl`** (non-skipped rows only).
+
+```bash
+python -m vision.label_app
+# http://127.0.0.1:8765/   (VISION_LABEL_PORT, VISION_LABEL_HOST)
+```
+
+Bind **`127.0.0.1`** only unless you add auth — this app is not hardened for the public internet.
+
+**Slice 2** — **yt-dlp** clip harness. **`data/clips/manifest.csv`** lists `clip_name`, `video_id`, `url`, `section` (yt-dlp `--download-sections`, e.g. `*0:00-2:00`), and `notes`. Downloads go to **`data/clips/{video_id}/{clip_name}.mp4`** (or **`YTDLP_OUTPUT_DIR`**). Live watch URLs may fail until a VOD exists—update the CSV when the replay is up.
+
+```bash
+python -m pip install -r requirements-dev.txt   # includes yt-dlp
+python -m vision.fetch --from-manifest --dry-run              # print commands + append fetch_log.csv
+./scripts/fetch_clips.sh --dry-run
+python -m vision.fetch --from-manifest                        # actually run yt-dlp
+```
+
+Regression stills live under **`vision/test_stills/`**. If COCO ever mis-fires on a true negative, you can add **`vision/test_stills/expectations.json`** with per-file `max_train_detections` under `without_train` (see `tests/vision/test_infer.py`).
+
+Run vision tests from the repo root (first run may download `yolov8n.pt`):
+
+```bash
+python -m pytest tests/ -q
 ```
 
 ## API Endpoints

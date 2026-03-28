@@ -1,5 +1,8 @@
 .venv/
 __pycache__/
+vision_infer_out/
+vision_infer_smoke/
+runs/
 *.pyc
 *.db
 *.sqlite3
@@ -10,3 +13,17 @@ node_modules/
 *.jpg
 *.jpeg
 *.gif
+# Commit vision regression stills
+!vision/test_stills/**/*.png
+!vision/test_stills/**/*.jpg
+!vision/test_stills/**/*.jpeg
+!.env.example
+
+# Downloaded YouTube clips + fetch log (keep data/clips/manifest.csv)
+data/clips/*
+!data/clips/manifest.csv
+!data/clips/archived_stream_clips.csv
+
+# Vision screenshots (PNG + JSON sidecars)
+data/vision_screenshots/
+sam_b.pt
